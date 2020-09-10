@@ -32,7 +32,7 @@ QUEUE=none         # queue name (e.g. curie )
 # Directory names
 #~~~~~~~~~~~~~~~~
 # 
-TMPDIR=$WORKDIR/TMPDIR_${CONFIG_CASE}
+TMPDIR=$WORKDIR/TMPDIR/TMPDIR_${CONFIG_CASE}
 MACHINE=<MACHINE>
 
 case  $MACHINE  in
