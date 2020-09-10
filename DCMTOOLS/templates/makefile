@@ -97,7 +97,7 @@ endif
 # define the target that must always be done, in any condition, never up to date !
 .PHONY: restore help 
 
-compile: copyfile copynamelist
+compile: check_module copyfile copynamelist
 	@echo ' '
 	@echo '... compile nemo  with fcm ...'
 	@cp CPP.keys $(PDIR)/RUN_$(CONFIG)/$(CONFIG)-$(CASE)/EXE/
@@ -105,6 +105,21 @@ compile: copyfile copynamelist
 	@cd $(COMPIL_DIR) ; ./makenemo -r $(CONFIG)-$(CASE)  -j $(NCOMPIL_PROC)
 	@ln -sf $(COMPIL_DIR)/cfgs/$(CONFIG)-$(CASE)/BLD/bin/nemo.exe $(PDIR)/RUN_$(CONFIG)/$(CONFIG)-$(CASE)/EXE/nemo4.exe
 
+check_module:
+	@echo ""
+ifneq ($(DCMVERSION),4.0.3) 
+	@echo 'module DCM/4.0.3 not loaded; exit 1'
+	@exit 1
+else
+	@echo "DCM version : $(DCMVERSION)"
+endif
+	@echo ""
+ifneq ($(XIOSVERSION),2.5) 
+	@echo 'module XIOS/2.5_r1903 not loaded; exit 1'
+	@exit 1
+else
+	@echo "XIOS version : $(XIOSVERSION)"
+endif
 
 copyfile:
 ifeq ($(CASEREF),'none')
@@ -166,9 +181,9 @@ copynamelist:
 
 ##############
 
-install:   copyref update_history  WORK cleansvn cleangit
+install:   check_module copyref update_history  WORK cleansvn cleangit
 
-reinstall: copyref  
+reinstall: check_module copyref  
 
 # Target copyconfig to duplicate an existant configuration to local directory
 copyconfig:
@@ -187,7 +202,7 @@ endif
 
 
 # Target copyconfigall do copyconfig + copy CPP.keys and template namelists
-copyconfigall:  copyconfig 
+copyconfigall: check_module copyconfig 
 ifeq ($(PREV_CONFIG),'none')
 	@echo "no previous configuration defined"
 else
@@ -200,7 +215,7 @@ endif
 	@gmake links
 
 # Target test_case : import respective test_case into the current config
-test_case:
+test_case: check_module
 ifeq ($(TEST_CASE),'none')
 	@echo "no test_case configuration defined"
 else
@@ -212,7 +227,7 @@ endif
 	@gmake links
 
 # Target nemo_ref_case : import respective nemo reference case into the current config
-nemo_ref_case:
+nemo_ref_case: check_module
 ifeq ($(NEMO_REF_CASE),'none')
 	@echo "no NEMO reference case configuration defined"
 else
@@ -226,7 +241,7 @@ endif
 
 # Target copyref is to be done each time we need to rebuild the
 # source code from the reference sources.
-copyref:
+copyref: check_module
 	@echo "    copy reference version to $(COMPIL_DIR) "
 	@cp -f -R $(REF)/src $(COMPIL_DIR)/.
 	@cp -f -R $(REF)/ext $(COMPIL_DIR)/.
@@ -254,20 +269,20 @@ endif
 	@echo  ./makenemo -r $(CONFIG)-$(CASE) -m $(MACHINE)  -j0
 	@cd $(COMPIL_DIR) ;  ./makenemo -r $(CONFIG)-$(CASE) -m $(MACHINE)  -j0
 
-WORK:
+WORK: check_module
 	@ln -s $(WK) WORK
 
-cleaninst:
+cleaninst: check_module
 	@-\rm -rf $(CDIR)/W$(CONFIG)-$(CASE)/*
 
-clean:
+clean: check_module
 	@cd $(COMPIL_DIR)/CONFIG/ ; ./makenemo -r $(CONFIG)-$(CASE) clean 
 
 # restore target is used to restore a SINGLE file from the 3levels references
 # must be invoked like : make restore RESTORE=OPA_SRC/SBC/ocesbc.F90  (for instance, with the full path relative to NEMO)
 # it is used automatically with rmfile.
 
-restore:
+restore: check_module
 ifeq ($(RESTORE),)
 	@echo "    Nothing to restore, guy !"
 else
@@ -292,7 +307,7 @@ else
 endif
 
 
-restoreioipsl:
+restoreioipsl: check_module
 # likely not working. Fix later if necessary.
 ifeq ($(RESTORE),)
 	@echo "    Nothing to restore, guy !"
@@ -312,7 +327,7 @@ else
 	@-cp  ../$(CONFIG)-$(CASEREF)/ext/$(RESTORE)  $(COMPIL_DIR)/ext/IOIPSL/src/$(RESTORE)
   endif
 endif
-links:
+links: check_module
 	@-ln -sf src/OCE/*.*0 .
 	@-ln -sf src/OCE/*/*.*0 .
 	@-ln -sf src/ICE/*.*0 .
@@ -326,7 +341,7 @@ ifneq ("$(wildcard src/MY_SRC/*)","")
 	@-ln -sf src/MY_SRC/*.*0 .
 endif
 
-update_history:
+update_history: check_module
 ifeq ($(SVN),'check')
 	@date >> install_history
 	@svn info $(HOMEDCM) >> install_history
@@ -339,7 +354,7 @@ ifeq ($(GIT),'check')
 	@echo install_history updated
 endif
 
-ctl:
+ctl: check_module
 	@dcm_mkctl -c $(CONFIG)-$(CASE) -m $(COMPUTER)
 	@mkdir -p $(PDIR)/RUN_$(CONFIG)/$(CONFIG)-$(CASE)/CTL/XML
 	@mkdir -p $(PDIR)/RUN_$(CONFIG)/$(CONFIG)-$(CASE)/CTL/NAMELIST
@@ -366,7 +381,7 @@ cleansvn:
 cleangit:
 	@-find . -name ".git" -exec \rm -rf {} \;
 
-help:
+help: check_module
 	@echo Available targets  \(mostly used\)
 	@echo  
 	@echo  - make install       : install this configuration on the $(COMPIL_DIR)

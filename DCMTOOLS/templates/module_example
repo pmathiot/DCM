@@ -26,8 +26,9 @@ conflict DCM
 conflict NEMODRAK
 
 # for Tcl script use only
-set             base_version    4.0
+set             base_version    4.0.3
 set             base_path       $::env(DEVGIT)/DCM_${base_version}/DCMTOOLS
+setenv          DCMVERSION      $base_version
 setenv          HOMEDCM         $base_path
 # REFDIR is the reference NEMO  directory
 setenv          REFDIR          ${base_path}/NEMOREF/NEMO4
@@ -38,7 +39,7 @@ setenv          CUSDIR          ${base_path}/DRAKKAR/NEMO4
 
 #### define the equivalent variables HOMEDCM2, REFDIR2, CUSDIR2 for an alternative version ( alter_version)
 ####  This is used in advanced comparison tools
-set             alter_version   4.0
+set             alter_version   4.0.3
 set             alter_path      $::env(DEVGIT)/DCM_$alter_version/DCMTOOLS
 setenv          HOMEDCM2        $alter_path
 # REFDIR is the reference NEMO  directory
