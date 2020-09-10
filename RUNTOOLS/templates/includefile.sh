@@ -32,7 +32,6 @@ QUEUE=none         # queue name (e.g. curie )
 # Directory names
 #~~~~~~~~~~~~~~~~
 # 
-WORKDIR=/scratch/$USER
 TMPDIR=$WORKDIR/TMPDIR_${CONFIG_CASE}
 MACHINE=<MACHINE>
 
