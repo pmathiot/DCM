@@ -89,7 +89,7 @@ MODULE icestp
 #  include "vectopt_loop_substitute.h90"
    !!----------------------------------------------------------------------
    !! NEMO/ICE 4.0 , NEMO Consortium (2018)
-   !! $Id: icestp.F90 10993 2019-05-17 13:07:59Z clem $
+   !! $Id: icestp.F90 13284 2020-07-09 15:12:23Z smasson $
    !! Software governed by the CeCILL license (see ./LICENSE)
    !!----------------------------------------------------------------------
 CONTAINS
@@ -201,7 +201,7 @@ CONTAINS
          !
          IF( lrst_ice )                 CALL ice_rst_write( kt )      ! -- Ice restart file 
          !
-         IF( ln_icectl )                CALL ice_ctl( kt )            ! -- alerts in case of model crash
+         IF( ln_icectl )                CALL ice_ctl( kt )            ! -- Control checks
          !
       ENDIF   ! End sea-ice time step only
 
@@ -222,7 +222,7 @@ CONTAINS
       !!
       !! ** purpose :   Initialize sea-ice parameters
       !!----------------------------------------------------------------------
-      INTEGER :: ji, jj, ierr
+      INTEGER :: jl, ierr
       !!----------------------------------------------------------------------
       IF(lwp) WRITE(numout,*)
       IF(lwp) WRITE(numout,*) 'Sea Ice Model: SI3 (Sea Ice modelling Integrated Initiative)' 
@@ -246,16 +246,21 @@ CONTAINS
       CALL mpp_sum( 'icestp', ierr )
       IF( ierr /= 0 )   CALL ctl_stop('STOP', 'ice_init : unable to allocate ice arrays')
       !
+      !                                ! set max concentration in both hemispheres
+      WHERE( gphit(:,:) > 0._wp )   ;   rn_amax_2d(:,:) = rn_amax_n  ! NH
+      ELSEWHERE                     ;   rn_amax_2d(:,:) = rn_amax_s  ! SH
+      END WHERE
+      !
       CALL ice_itd_init                ! ice thickness distribution initialization
       !
       CALL ice_thd_init                ! set ice thermodynics parameters (clem: important to call it first for melt ponds)
       !
       !                                ! Initial sea-ice state
-      IF( .NOT. ln_rstart ) THEN              ! start from rest: sea-ice deduced from sst
+      IF ( ln_rstart .OR. nn_iceini_file == 2 ) THEN
+         CALL ice_rst_read                      ! start from a restart file
+      ELSE
          CALL ice_istate_init
-         CALL ice_istate( nit000 )
-      ELSE                                    ! start from a restart file
-         CALL ice_rst_read
+         CALL ice_istate( nit000 )              ! start from rest or read a file
       ENDIF
       CALL ice_var_glo2eqv
       CALL ice_var_agg(1)
@@ -273,11 +278,6 @@ CONTAINS
       fr_i  (:,:)   = at_i(:,:)        ! initialisation of sea-ice fraction
       tn_ice(:,:,:) = t_su(:,:,:)      ! initialisation of surface temp for coupled simu
       !
-      !                                ! set max concentration in both hemispheres
-      WHERE( gphit(:,:) > 0._wp )   ;   rn_amax_2d(:,:) = rn_amax_n  ! NH
-      ELSEWHERE                     ;   rn_amax_2d(:,:) = rn_amax_s  ! SH
-      END WHERE
-
       IF( ln_rstart )   CALL iom_close( numrir )  ! close input ice restart file
       !
    END SUBROUTINE ice_init
@@ -378,7 +378,6 @@ CONTAINS
       v_i_b (:,:,:)   = v_i (:,:,:)     ! ice volume
       v_s_b (:,:,:)   = v_s (:,:,:)     ! snow volume
       sv_i_b(:,:,:)   = sv_i(:,:,:)     ! salt content
-      oa_i_b(:,:,:)   = oa_i(:,:,:)     ! areal age content
       e_s_b (:,:,:,:) = e_s (:,:,:,:)   ! snow thermal energy
       e_i_b (:,:,:,:) = e_i (:,:,:,:)   ! ice thermal energy
       WHERE( a_i_b(:,:,:) >= epsi20 )
@@ -387,12 +386,6 @@ CONTAINS
       ELSEWHERE
          h_i_b(:,:,:) = 0._wp
          h_s_b(:,:,:) = 0._wp
-      END WHERE
-      
-      WHERE( a_ip(:,:,:) >= epsi20 )
-         h_ip_b(:,:,:) = v_ip(:,:,:) / a_ip(:,:,:)   ! ice pond thickness
-      ELSEWHERE
-         h_ip_b(:,:,:) = 0._wp
       END WHERE
       !
       ! ice velocities & total concentration
@@ -436,7 +429,6 @@ CONTAINS
       hfx_bom(:,:) = 0._wp   ;   hfx_sum(:,:) = 0._wp
       hfx_res(:,:) = 0._wp   ;   hfx_sub(:,:) = 0._wp
       hfx_spr(:,:) = 0._wp   ;   hfx_dif(:,:) = 0._wp
-      hfx_err_rem(:,:) = 0._wp
       hfx_err_dif(:,:) = 0._wp
       wfx_err_sub(:,:) = 0._wp
       !
@@ -457,7 +449,7 @@ CONTAINS
       diag_trp_vi(:,:) = 0._wp   ;   diag_trp_vs(:,:) = 0._wp
       diag_trp_ei(:,:) = 0._wp   ;   diag_trp_es(:,:) = 0._wp
       diag_trp_sv(:,:) = 0._wp
-
+      
    END SUBROUTINE diag_set0
 
 #else

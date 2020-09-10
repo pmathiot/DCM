@@ -36,7 +36,7 @@ MODULE sbcssr
 
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   erp   !: evaporation damping   [kg/m2/s]
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   qrp   !: heat flux damping        [w/m2]
-   REAL(wp),         ALLOCATABLE, SAVE, DIMENSION(:,:) ::   scalice   !: under ice relaxation coefficient
+   REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   coefice   !: under ice relaxation coefficient
 
    !                                   !!* Namelist namsbc_ssr *
    INTEGER, PUBLIC ::   nn_sstr         ! SST/SSS restoring indicator
@@ -65,7 +65,7 @@ MODULE sbcssr
 
    !!----------------------------------------------------------------------
    !! NEMO/OCE 4.0 , NEMO Consortium (2018)
-   !! $Id: sbcssr.F90 10068 2018-08-28 14:09:04Z nicolasmartin $
+   !! $Id: sbcssr.F90 12276 2019-12-20 11:14:26Z cetlod $
    !! Software governed by the CeCILL license (see ./LICENSE)
    !!----------------------------------------------------------------------
 CONTAINS
@@ -122,12 +122,12 @@ CONTAINS
             !
             IF( nn_sssr /= 0 .AND. nn_sssr_ice /= 1 ) THEN
               ! use fraction of ice ( fr_i ) to adjust relaxation under ice if nn_sssr_ice .ne. 1
-              ! n.b. scalice is initialised and fixed to 1._wp if nn_sssr_ice = 1
+              ! n.b. coefice is initialised and fixed to 1._wp if nn_sssr_ice = 1
                DO jj = 1, jpj
                   DO ji = 1, jpi
                      SELECT CASE ( nn_sssr_ice )
-                       CASE ( 0 )    ;  scalice(ji,jj) = 1._wp - fr_i(ji,jj)              ! no/reduced damping under ice
-                       CASE  DEFAULT ;  scalice(ji,jj) = 1._wp + ( nn_sssr_ice - 1 ) * fr_i(ji,jj) ! reinforced damping (x nn_sssr_ice) under ice )
+                       CASE ( 0 )    ;  coefice(ji,jj) = 1._wp - fr_i(ji,jj)              ! no/reduced damping under ice
+                       CASE  DEFAULT ;  coefice(ji,jj) = 1._wp + ( nn_sssr_ice - 1 ) * fr_i(ji,jj) ! reinforced damping (x nn_sssr_ice) under ice )
                      END SELECT
                   END DO
                END DO
@@ -138,7 +138,7 @@ CONTAINS
                DO jj = 1, jpj
                   DO ji = 1, jpi
                      zerp = zsrp * ( 1. - 2.*rnfmsk(ji,jj) )   &      ! No damping in vicinity of river mouths
-                        &        *   scalice(ji,jj)            &      ! Optional control of damping under sea-ice
+                        &        *   coefice(ji,jj)            &      ! Optional control of damping under sea-ice
 #if defined key_drakkar
                         &        * ( sss_m(ji,jj) - sf_sss(1)%fnow(ji,jj,1) ) * tmask(ji,jj,1) * erpcoef(ji,jj)
 #else
@@ -169,7 +169,7 @@ CONTAINS
 #if defined key_drakkar
                    ! use filters model fields and multiply zerp by erpcoef
                      zerp = zsrp * ( 1. - 2.*rnfmsk(ji,jj) )   &      ! No damping in vicinity of river mouths
-                        &        *   scalice(ji,jj)            &      ! Optional control of damping under sea-ice
+                        &        *   coefice(ji,jj)            &      ! Optional control of damping under sea-ice
                         &        * ( zsss_m(ji,jj) - sf_sss(1)%fnow(ji,jj,1) )   &
                         &        / MAX(  zsss_m(ji,jj), 1.e-20   )               &
                         &        * erpcoef(ji,jj)
@@ -178,7 +178,7 @@ CONTAINS
                      IF( ln_sssr_msk )   zerp = zerp * distcoast(ji,jj) ! multiply by weigh to fade zerp out near the coast
 #else
                      zerp = zsrp * ( 1. - 2.*rnfmsk(ji,jj) )   &      ! No damping in vicinity of river mouths
-                        &        *   scalice(ji,jj)            &      ! Optional control of damping under sea-ice
+                        &        *   coefice(ji,jj)            &      ! Optional control of damping under sea-ice
                         &        * ( sss_m(ji,jj) - sf_sss(1)%fnow(ji,jj,1) )   &
                         &        / MAX(  sss_m(ji,jj), 1.e-20   ) * tmask(ji,jj,1)
                      IF( ln_sssr_bnd )   zerp = SIGN( 1., zerp ) * MIN( zerp_bnd, ABS(zerp) )
@@ -188,7 +188,6 @@ CONTAINS
                      erp(ji,jj) = zerp
                   END DO
                END DO
-
             ENDIF
             !
          ENDIF
@@ -350,7 +349,7 @@ CONTAINS
 #endif
       ENDIF
       !
-      scalice(:,:) = 1._wp         !  Initialise scalice to 1._wp ; will not need to be changed if nn_sssr_ice=1
+      coefice(:,:) = 1._wp         !  Initialise coefice to 1._wp ; will not need to be changed if nn_sssr_ice=1
       !                            !* Initialize qrp and erp if no restoring 
       IF( nn_sstr /= 1                   )   qrp(:,:) = 0._wp
       IF( nn_sssr /= 1 .OR. nn_sssr /= 2 )   erp(:,:) = 0._wp
@@ -363,7 +362,7 @@ CONTAINS
       !!----------------------------------------------------------------------
       sbc_ssr_alloc = 0       ! set to zero if no array to be allocated
       IF( .NOT. ALLOCATED( erp ) ) THEN
-         ALLOCATE( qrp(jpi,jpj), erp(jpi,jpj), scalice(jpi,jpj), STAT= sbc_ssr_alloc )
+         ALLOCATE( qrp(jpi,jpj), erp(jpi,jpj), coefice(jpi,jpj), STAT= sbc_ssr_alloc )
          !
          IF( lk_mpp                  )   CALL mpp_sum ( 'sbcssr', sbc_ssr_alloc )
          IF( sbc_ssr_alloc /= 0 )   CALL ctl_warn('sbc_ssr_alloc: failed to allocate arrays.')
