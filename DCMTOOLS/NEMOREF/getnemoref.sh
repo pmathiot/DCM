@@ -23,3 +23,9 @@
 #svn co -r 12604  https://forge.ipsl.jussieu.fr/nemo/svn/NEMO/releases/release-4.0.1 NEMO4
 # as of March, 27 2020
 svn co -r 13358  https://forge.ipsl.jussieu.fr/nemo/svn/NEMO/releases/r4.0/r4.0.3 NEMO4
+# cd NEMO4
+# svn merge -r 12715:12927 https://forge.ipsl.jussieu.fr/nemo/svn/NEMO/branches/UKMO/NEMO_4.0.2_GO8_package_ENHANCE-02_ISF_nemo
+# svn merge --allow-mixed-revisions -r 13243:13276 https://forge.ipsl.jussieu.fr/nemo/svn/NEMO/branches/2020/tickets_2494_2375
+# svn merge --allow-mixed-revisions -r 13277:13374 https://forge.ipsl.jussieu.fr/nemo/svn/NEMO/branches/2020/tickets_icb_1900
+
+
