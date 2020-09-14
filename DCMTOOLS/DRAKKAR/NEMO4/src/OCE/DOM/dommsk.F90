@@ -96,6 +96,7 @@ CONTAINS
       INTEGER  ::   ios, inum
       !!
       NAMELIST/namlbc/ rn_shlat, ln_vorlat
+
       NAMELIST/nambdy/ ln_bdy ,nb_bdy, ln_coords_file, cn_coords_file,         &
          &             ln_mask_file, cn_mask_file, cn_dyn2d, nn_dyn2d_dta,     &
          &             cn_dyn3d, nn_dyn3d_dta, cn_tra, nn_tra_dta,             &

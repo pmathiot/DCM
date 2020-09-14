@@ -380,17 +380,6 @@ CONTAINS
         CALL iom_set_rstw_var_active('sn'  )
         CALL iom_set_rstw_var_active('sshn')
         CALL iom_set_rstw_var_active('rhop')
-     ! extra variable needed for the ice sheet coupling
-        IF ( ln_iscpl ) THEN
-             CALL iom_set_rstw_var_active('tmask')
-             CALL iom_set_rstw_var_active('umask')
-             CALL iom_set_rstw_var_active('vmask')
-             CALL iom_set_rstw_var_active('smask')
-             CALL iom_set_rstw_var_active('e3t_n')
-             CALL iom_set_rstw_var_active('e3u_n')
-             CALL iom_set_rstw_var_active('e3v_n')
-             CALL iom_set_rstw_var_active('gdepw_n')
-        END IF
       ENDIF
       IF(ln_diurnal) CALL iom_set_rstw_var_active('Dsst')
 !from trasbc.F90

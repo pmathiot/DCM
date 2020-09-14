@@ -4,7 +4,7 @@
 !! NEMO/OCE  :  1 - Domain & run manager (namrun, namcfg, namdom, namtsd, namcrs, namc1d, namc1d_uvd)
 !! namelists    2 - Surface boundary (namsbc, namsbc_flx, namsbc_blk, namsbc_cpl,
 !!                                    namsbc_sas, namtra_qsr, namsbc_rnf,
-!!                                    namsbc_isf, namsbc_iscpl, namsbc_apr, 
+!!                                    namisf, namsbc_apr, 
 !!                                    namsbc_ssr, namsbc_wave, namberg)
 !!              3 - lateral boundary (namlbc, namagrif, nambdy, nambdy_tide)
 !!              4 - top/bot boundary (namdrg, namdrg_top, namdrg_bot, nambbc, nambbl)
@@ -50,7 +50,6 @@
       cn_ocerst_indir = "<CN_DIRRST>"       !  directory from which to read input ocean restarts
       cn_ocerst_out = "restart" !  suffix of ocean restart name (output)
       cn_ocerst_outdir = "<CN_DIRRST>"      !  directory in which to write output ocean restarts
-   ln_iscpl    = .false.   !  cavity evolution forcing or coupling to ice sheet model
    nn_istate   =       0   !  output the initial state (1) or not (0)
    ln_rst_list = .false.   !  output restarts at list of times using nn_stocklist (T) or at set frequency with nn_stock (F)
    nn_stock    =       0   !  used only if ln_rst_list = F: output restart freqeuncy (modulo referenced to 1)
@@ -71,7 +70,6 @@
 &namdom        !   time and space domain
 !-----------------------------------------------------------------------
    ln_linssh   = .true.    !  =T  linear free surface  ==>>  model level are fixed in time
-   rn_isfhmin  =    1.00   !  treshold [m] to discriminate grounding ice from floating ice
    !
    rn_rdt      =    720.   !  time step for the dynamics and tracer
    rn_atfp     =    0.1    !  asselin time filter parameter
@@ -202,8 +200,6 @@
 !!   namsbc_ssr      sea surface restoring term (for T and/or S)        (ln_ssr     =T)
 !!   namsbc_rnf      river runoffs                                      (ln_rnf     =T)
 !!   namsbc_apr      Atmospheric Pressure                               (ln_apr_dyn =T)
-!!   namsbc_isf      ice shelf melting/freezing                         (ln_isfcav  =T : read (ln_read_cfg=T) or set or usr_def_zgr )
-!!   namsbc_iscpl    coupling option between land ice model and ocean   (ln_isfcav  =T)
 !!   namsbc_wave     external fields from wave model                    (ln_wave    =T)
 !!   namberg         iceberg floats                                     (ln_icebergs=T)
 !!======================================================================
@@ -240,7 +236,6 @@
       !                    !     =2 annual global mean of e-p-r set to zero
    ln_rnf      = .true.    !  runoffs                                   (T => fill namsbc_rnf)
    ln_apr_dyn  = .false.   !  Patm gradient added in ocean & ice Eqs.   (T => fill namsbc_apr )
-   ln_isf      = .false.   !  ice shelf                                 (T   => fill namsbc_isf & namsbc_iscpl)
    ln_wave     = .false.   !  Activate coupling with wave  (T => fill namsbc_wave)
    ln_cdgw     = .false.   !  Neutral drag coefficient read from wave model (T => ln_wave=.true. & fill namsbc_wave)
    ln_sdw      = .false.   !  Read 2D Surf Stokes Drift & Computation of 3D stokes drift (T => ln_wave=.true. & fill namsbc_wave)
@@ -504,45 +499,70 @@
    sn_apr      = 'patm'                  ,         -1.       ,'somslpre' ,   .true.    , .true. , 'yearly'  ,    ''            ,    ''    ,      ''
 /
 !-----------------------------------------------------------------------
-&namsbc_isf    !  Top boundary layer (ISF)                              (ln_isfcav =T : read (ln_read_cfg=T) 
-!-----------------------------------------------------------------------             or set or usr_def_zgr )
-   !                 ! type of top boundary layer 
-   nn_isf      = 1         !  ice shelf melting/freezing
-                           !  1 = presence of ISF   ;  2 = bg03 parametrisation 
-                           !  3 = rnf file for ISF  ;  4 = ISF specified freshwater flux
-                           !  options 1 and 4 need ln_isfcav = .true. (domzgr)
-      !              !  nn_isf = 1 or 2 cases:
-      rn_gammat0  = 1.e-4     ! gammat coefficient used in blk formula
-      rn_gammas0  = 1.e-4     ! gammas coefficient used in blk formula
-      !              !  nn_isf = 1 or 4 cases:
-      rn_hisf_tbl =  30.      ! thickness of the top boundary layer    (Losh et al. 2008)
-      !                       ! 0 => thickness of the tbl = thickness of the first wet cell
-      !              ! nn_isf = 1 case
-      nn_isfblk   = 1         ! 1 ISOMIP  like: 2 equations formulation (Hunter et al., 2006)
-      !                       ! 2 ISOMIP+ like: 3 equations formulation (Asay-Davis et al., 2015)
-      nn_gammablk = 1         ! 0 = cst Gammat (= gammat/s)
-      !                       ! 1 = velocity dependend Gamma (u* * gammat/s)  (Jenkins et al. 2010)
-      !                       ! 2 = velocity and stability dependent Gamma    (Holland et al. 1999)
-
-   !___________!_____________!___________________!___________!_____________!_________!___________!__________!__________!_______________!
-   !           !  file name  ! frequency (hours) ! variable  ! time interp.!  clim   ! 'yearly'/ ! weights  ! rotation ! land/sea mask !
-   !           !             !  (if <0  months)  !   name    !  (logical)  !  (T/F)  ! 'monthly' ! filename ! pairing  ! filename      !
-!* nn_isf = 4 case
-   sn_fwfisf   = 'rnfisf'    ,         -12.      ,'sowflisf' ,  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
-!* nn_isf = 3 case
-   sn_rnfisf   = 'rnfisf'    ,         -12.      ,'sofwfisf' ,  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
-!* nn_isf = 2 and 3 cases 
-   sn_depmax_isf ='rnfisf'   ,         -12.      ,'sozisfmax',  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
-   sn_depmin_isf ='rnfisf'   ,         -12.      ,'sozisfmin',  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
-!* nn_isf = 2 case
-   sn_Leff_isf = 'rnfisf'    ,         -12.      ,'Leff'     ,  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
-/
+&namisf       !  Top boundary layer (ISF)                               (default: OFF)
 !-----------------------------------------------------------------------
-&namsbc_iscpl  !   land ice / ocean coupling option                     (ln_isfcav =T : read (ln_read_cfg=T) 
-!-----------------------------------------------------------------------             or set or usr_def_zgr )
-   nn_drown    = 10        ! number of iteration of the extrapolation loop (fill the new wet cells)
-   ln_hsb      = .false.   ! activate conservation module (conservation exact after a time of rn_fiscpl)
-   nn_fiscpl   = 43800     ! (number of time step) conservation period (maybe should be fix to the coupling frequencey of restart frequency)
+   !
+   ! ---------------- ice shelf load -------------------------------
+   !
+   cn_isfload = 'uniform'      ! scheme to compute ice shelf load (ln_isfcav = .true. in domain_cfg.nc)
+      rn_isfload_T = -1.9
+      rn_isfload_S = 34.4
+   !
+   ! ---------------- ice shelf melt formulation -------------------------------
+   !
+   ln_isf = .false.           ! activate ice shelf module
+      ln_isfdebug = .false.      ! add debug print in ISF code (global min/max/sum of specific variable)
+      cn_isfdir   = './'         ! directory for all ice shelf input file
+      !
+      ! ---------------- cavities opened -------------------------------
+      !
+      ln_isfcav_mlt = .false.    ! ice shelf melting into the cavity (need ln_isfcav = .true. in domain_cfg.nc)
+         cn_isfcav_mlt = '3eq'   ! ice shelf melting formulation (spe/2eq/3eq/oasis)
+         !                       ! spe = fwfisf is read from a forcing field
+         !                       ! 2eq = ISOMIP  like: 2 equations formulation (Hunter et al., 2006 for a short description)
+         !                       ! 3eq = ISOMIP+ like: 3 equations formulation (Asay-Davis et al., 2016 for a short description)
+         !                       ! oasis = fwfisf is given by oasis and pattern by file sn_isfcav_fwf
+         !              !  cn_isfcav_mlt = 2eq or 3eq cases:
+         cn_gammablk = 'vel'     ! scheme to compute gammat/s (spe,ad15,hj99)
+         !                       ! spe      = constant transfert velocity (rn_gammat0, rn_gammas0)
+         !                       ! vel      = velocity dependent transfert velocity (u* * gammat/s) (Asay-Davis et al. 2016 for a short description)
+         !                       ! vel_stab = velocity and stability dependent transfert coeficient (Holland et al. 1999 for a complete description)
+         rn_gammat0  = 1.4e-2    ! gammat coefficient used in spe, vel and vel_stab gamma computation method
+         rn_gammas0  = 4.0e-4    ! gammas coefficient used in spe, vel and vel_stab gamma computation method
+         !
+         rn_htbl     =  30.      ! thickness of the top boundary layer    (Losh et al. 2008)
+         !                       ! 0 => thickness of the tbl = thickness of the first wet cell
+         !
+         !* 'spe' and 'oasis' case
+         !___________!_____________!___________________!___________!_____________!_________!___________!__________!__________!_______________!
+         !           !  file name  ! frequency (hours) ! variable  ! time interp.!  clim   ! 'yearly'/ ! weights  ! rotation ! land/sea mask !
+         !           !             !  (if <0  months)  !   name    !  (logical)  !  (T/F)  ! 'monthly' ! filename ! pairing  ! filename      !
+         sn_isfcav_fwf = 'isfmlt_cav',      -12.      , 'fwflisf'  ,  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
+      !
+      ! ---------------- cavities parametrised -------------------------------
+      !
+      ln_isfpar_mlt = .false.   ! ice shelf melting parametrised
+         cn_isfpar_mlt = 'spe'  ! ice shelf melting parametrisation (spe/bg03/oasis)
+         !                      ! spe   = fwfisf is read from a forcing field
+         !                      ! bg03  = melt computed using Beckmann and Goosse parametrisation
+         !                      ! oasis = fwfisf is given by oasis and pattern by file sn_isfpar_fwf
+         !
+         !* all cases
+         !___________!_____________!___________________!___________!_____________!_________!___________!__________!__________!_______________!
+         !           !  file name  ! frequency (hours) ! variable  ! time interp.!  clim   ! 'yearly'/ ! weights  ! rotation ! land/sea mask !
+         !           !             !  (if <0  months)  !   name    !  (logical)  !  (T/F)  ! 'monthly' ! filename ! pairing  ! filename      !
+         sn_isfpar_zmax = 'isfmlt_par',       0        ,'sozisfmax',  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
+         sn_isfpar_zmin = 'isfmlt_par',       0        ,'sozisfmin',  .false.    , .true.  , 'yearly'  ,    ''    ,   ''     ,    ''
+         !* 'spe' and 'oasis' case
+         sn_isfpar_fwf = 'isfmlt_par' ,      -12.      ,'sofwfisf' ,  .false.    , .true.  , 'yearly'   ,    ''    ,   ''     ,    ''
+         !* 'bg03' case
+         sn_isfpar_Leff = 'isfmlt_par',       0.       ,'Leff'     ,  .false.    , .true.  , 'yearly'   ,    ''    ,   ''     ,    ''
+      !
+      ! ---------------- ice sheet coupling -------------------------------
+      !
+      ln_isfcpl = .false.
+         nn_drown       = 10        ! number of iteration of the extrapolation loop (fill the new wet cells)
+         ln_isfcpl_cons = .false.
 /
 !-----------------------------------------------------------------------
 &namsbc_wave   ! External fields from wave model                        (ln_wave=T)
@@ -566,6 +586,12 @@
 &namberg       !   iceberg parameters                                   (default: OFF)
 !-----------------------------------------------------------------------
    ln_icebergs = .false.      ! activate iceberg floats (force =F with "key_agrif")
+   !
+   !                          ! restart
+   cn_icbrst_in     = "restart_icb" !  suffix of iceberg restart name (input)
+   cn_icbrst_indir  = "./"          !  directory from which to read input ocean restarts
+   cn_icbrst_out    = "restart_icb" !  suffix of ocean restart name (output)
+   cn_icbrst_outdir = "./"          !  directory from which to read output ocean restarts          
    !
    !                          ! diagnostics:
    ln_bergdia        = .true.        ! Calculate budgets
@@ -595,7 +621,10 @@
    rn_test_box             = 108.0,  116.0, -66.0, -58.0
    ln_use_calving          = .false. ! Use calving data even when nn_test_icebergs > 0
    rn_speed_limit          = 0.      ! CFL speed limit for a berg
-
+   !
+   ln_M2016                = .false. ! use Merino et al. (2016) modification (use of 3d ocean data instead of only sea surface data)
+      ln_icb_grd           = .false. ! ground icb when icb bottom level hit oce bottom level (need ln_M2016 to be activated)
+   !
    cn_dir      = './'      !  root directory for the calving data location
    !___________!_________________________!___________________!___________!_____________!________!___________!__________________!__________!_______________!
    !           !  file name              ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights filename ! rotation ! land/sea mask !
@@ -779,7 +808,17 @@
    !           !  file name ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights e ! rotation ! land/sea mask !
    !           !            !  (if <0  months)  !   name    !   (logical) !  (T/F) ! 'monthly' !  filename ! pairing  !    filename   !
    sn_boost    = 'tfr_coef' ,       -12.        , 'tfr_coef',   .false.   , .true. , 'yearly'  ,   ''      ,   ''     ,   ''
+/!-----------------------------------------------------------------------
+&namdrg_top_tipaccs !  TOP tidal velocity   (ln_boost = T )
+!-----------------------------------------------------------------------
+   ln_2d_ttv   = .false.
+      cn_dirttv   = './'       !  root directory for the boost file ( top friction)
+      !___________!____________!___________________!___________!_____________!________!___________!___________!__________!_______________!
+      !           !  file name ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights e ! rotation ! land/sea mask !
+      !           !            !  (if <0  months)  !   name    !   (logical) !  (T/F) ! 'monthly' !  filename ! pairing  !    filename   !
+      sn_ttv      = 'ttv'      ,       -12.        , 'ttv'     ,   .false.   , .true. , 'yearly'  ,   ''      ,   ''     ,   ''
 /
+
 !-----------------------------------------------------------------------
 &namdrg_bot    !   BOTTOM friction                                      (ln_OFF =F)
 !-----------------------------------------------------------------------

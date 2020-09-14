@@ -191,11 +191,10 @@ CONTAINS
       !
       IF( lk_c1d         )   CALL cor_c1d       ! 1D configuration: Coriolis set at T-point
       !
-      IF( ln_meshmask .AND. .NOT.ln_iscpl )                        CALL dom_wri     ! Create a domain file
-      IF( ln_meshmask .AND.      ln_iscpl .AND. .NOT.ln_rstart )   CALL dom_wri     ! Create a domain file
-      IF(                                       .NOT.ln_rstart )   CALL dom_ctl     ! Domain control
+      IF( ln_meshmask    )   CALL dom_wri       ! Create a domain file
+      IF( .NOT.ln_rstart )   CALL dom_ctl       ! Domain control
       !
-      IF( ln_write_cfg )   CALL cfg_write         ! create the configuration file
+      IF( ln_write_cfg   )   CALL cfg_write     ! create the configuration file
       !
       IF(lwp) THEN
          WRITE(numout,*)
@@ -291,11 +290,11 @@ CONTAINS
          &             nn_no   , cn_exp   , cn_ocerst_in, cn_ocerst_out, ln_rstart , nn_rstctl ,     &
          &             nn_it000, nn_itend , nn_date0    , nn_time0     , nn_leapy  , nn_istate ,     &
          &             nn_stock, nn_write , ln_mskland  , ln_clobber   , nn_chunksz, nn_euler  ,     &
-         &             ln_cfmeta, ln_iscpl, ln_xios_read, nn_wxios
+         &             ln_cfmeta,ln_xios_read, nn_wxios
 #if defined key_drakkar
       CHARACTER(lc)  :: cl_no
 #endif
-      NAMELIST/namdom/ ln_linssh, rn_isfhmin, rn_rdt, rn_atfp, ln_crs, ln_meshmask
+      NAMELIST/namdom/ ln_linssh, rn_rdt, rn_atfp, ln_crs, ln_meshmask
 #if defined key_netcdf4
       NAMELIST/namnc4/ nn_nchunks_i, nn_nchunks_j, nn_nchunks_k, ln_nc4zip
 #endif
@@ -361,7 +360,6 @@ CONTAINS
          WRITE(numout,*) '      additional CF standard metadata ln_cfmeta       = ', ln_cfmeta
          WRITE(numout,*) '      overwrite an existing file      ln_clobber      = ', ln_clobber
          WRITE(numout,*) '      NetCDF chunksize (bytes)        nn_chunksz      = ', nn_chunksz
-         WRITE(numout,*) '      IS coupling at the restart step ln_iscpl        = ', ln_iscpl
          IF( TRIM(Agrif_CFixed()) == '0' ) THEN
             WRITE(numout,*) '      READ restart for a single file using XIOS ln_xios_read =', ln_xios_read
             WRITE(numout,*) '      Write restart using XIOS        nn_wxios   = ', nn_wxios
@@ -435,7 +433,6 @@ CONTAINS
          WRITE(numout,*) '   Namelist : namdom   ---   space & time domain'
          WRITE(numout,*) '      linear free surface (=T)                ln_linssh   = ', ln_linssh
          WRITE(numout,*) '      create mesh/mask file                   ln_meshmask = ', ln_meshmask
-         WRITE(numout,*) '      treshold to open the isf cavity         rn_isfhmin  = ', rn_isfhmin, ' [m]'
          WRITE(numout,*) '      ocean time step                         rn_rdt      = ', rn_rdt
          WRITE(numout,*) '      asselin time filter parameter           rn_atfp     = ', rn_atfp
          WRITE(numout,*) '      online coarsening of dynamical fields   ln_crs      = ', ln_crs

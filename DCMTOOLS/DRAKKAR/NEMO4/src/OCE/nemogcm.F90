@@ -60,6 +60,7 @@ MODULE nemogcm
    USE diacfl         ! CFL diagnostics               (dia_cfl_init routine)
    USE diaharm        ! tidal harmonics diagnostics  (dia_harm_init routine)
    USE step           ! NEMO time-stepping                 (stp     routine)
+   USE isfstp         ! ice shelf                     (isf_stp_init routine)
    USE icbini         ! handle bergs, initialisation
    USE icbstp         ! handle bergs, calving, themodynamics and transport
    USE cpl_oasis3     ! OASIS3 coupling
@@ -492,6 +493,7 @@ CONTAINS
          !
          RETURN                                       ! end of initialization
       ENDIF
+      !
       
                            CALL  istate_init    ! ocean initial state (Dynamics and tracers)
 
@@ -532,6 +534,9 @@ CONTAINS
 
       !                                      ! Icebergs
                            CALL icb_init( rdt, nit000)   ! initialise icebergs instance
+
+                                                ! ice shelf
+                           CALL isf_init
 
       !                                      ! Misc. options
                            CALL sto_par_init    ! Stochastic parametrization

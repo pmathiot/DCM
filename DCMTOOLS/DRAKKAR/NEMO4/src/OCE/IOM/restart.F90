@@ -167,17 +167,6 @@ CONTAINS
                      CALL iom_rstput( kt, nitrst, numrow, 'sn'     , tsn(:,:,:,jp_sal), ldxios = lwxios )
                      CALL iom_rstput( kt, nitrst, numrow, 'sshn'   , sshn, ldxios = lwxios      )
                      CALL iom_rstput( kt, nitrst, numrow, 'rhop'   , rhop, ldxios = lwxios      )
-                  ! extra variable needed for the ice sheet coupling
-                  IF ( ln_iscpl ) THEN 
-                     CALL iom_rstput( kt, nitrst, numrow, 'tmask'  , tmask, ldxios = lwxios ) ! need to extrapolate T/S
-                     CALL iom_rstput( kt, nitrst, numrow, 'umask'  , umask, ldxios = lwxios ) ! need to correct barotropic velocity
-                     CALL iom_rstput( kt, nitrst, numrow, 'vmask'  , vmask, ldxios = lwxios ) ! need to correct barotropic velocity
-                     CALL iom_rstput( kt, nitrst, numrow, 'smask'  , ssmask, ldxios = lwxios) ! need to correct barotropic velocity
-                     CALL iom_rstput( kt, nitrst, numrow, 'e3t_n', e3t_n(:,:,:), ldxios = lwxios )   ! need to compute temperature correction
-                     CALL iom_rstput( kt, nitrst, numrow, 'e3u_n', e3u_n(:,:,:), ldxios = lwxios )   ! need to compute bt conservation
-                     CALL iom_rstput( kt, nitrst, numrow, 'e3v_n', e3v_n(:,:,:), ldxios = lwxios )   ! need to compute bt conservation
-                     CALL iom_rstput( kt, nitrst, numrow, 'gdepw_n', gdepw_n(:,:,:), ldxios = lwxios ) ! need to compute extrapolation if vvl
-                  END IF
       ENDIF
       
       IF (ln_diurnal) CALL iom_rstput( kt, nitrst, numrow, 'Dsst', x_dsst, ldxios = lwxios )  

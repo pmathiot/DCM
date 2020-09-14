@@ -18,6 +18,7 @@
       <!-- T grid -->
       
       <field_group id="grid_T" grid_ref="grid_T_2D" >
+
         <field id="e3t"          long_name="T-cell thickness"                    standard_name="cell_thickness"        unit="m"   grid_ref="grid_T_3D" />
         <field id="e3ts"         long_name="T-cell thickness"   field_ref="e3t"  standard_name="cell_thickness"        unit="m"   grid_ref="grid_T_SFC"/>
         <field id="e3t_0"        long_name="Initial T-cell thickness"            standard_name="ref_cell_thickness"    unit="m"   grid_ref="grid_T_3D" />
@@ -26,11 +27,11 @@
         <field id="e3t_vsum300"  field_ref="e3t_300"            grid_ref="grid_T_vsum"   detect_missing_value="true" />
 	<field id="masscello"    long_name="Sea Water Mass per unit area"   standard_name="sea_water_mass_per_unit_area"   unit="kg/m2"   grid_ref="grid_T_3D"/>
         <field id="volcello"     long_name="Ocean Volume"                   standard_name="ocean_volume"   unit="m3"       grid_ref="grid_T_3D"/> 
+
         <field id="toce"         long_name="temperature"                         standard_name="sea_water_potential_temperature"   unit="degC"     grid_ref="grid_T_3D"/>
         <field id="toce_e3t"     long_name="temperature (thickness weighted)"                                                      unit="degC"     grid_ref="grid_T_3D" > toce * e3t </field >
         <field id="soce"         long_name="salinity"                            standard_name="sea_water_practical_salinity"      unit="1e-3"     grid_ref="grid_T_3D"/>
         <field id="soce_e3t"     long_name="salinity    (thickness weighted)"                                                      unit="1e-3"     grid_ref="grid_T_3D" > soce * e3t </field >
-
         <field id="toce_e3t_300"      field_ref="toce_e3t"          unit="degree_C"     grid_ref="grid_T_zoom_300"      detect_missing_value="true" />
         <field id="toce_e3t_vsum300"  field_ref="toce_e3t_300"      unit="degress_C*m"  grid_ref="grid_T_vsum"  detect_missing_value="true" />
         <field id="toce_vmean300"     field_ref="toce_e3t_vsum300"  unit="degree_C"     grid_ref="grid_T_vsum"  detect_missing_value="true" > toce_e3t_vsum300/e3t_vsum300 </field>
@@ -288,22 +289,35 @@
           <field id="ssh_ib"       long_name="Inverse barometer sea surface height"  standard_name="sea_surface_height_correction_due_to_air_pressure_at_low_frequency"   unit="m"        />
 
           <!-- * variable related to ice shelf forcing * -->
-          <field id="fwfisf"       long_name="Ice shelf melting"                             unit="kg/m2/s"  />
-          <field id="fwfisf3d"     long_name="Ice shelf melting"                             unit="kg/m2/s"  grid_ref="grid_T_3D" />
-          <field id="qlatisf"      long_name="Ice shelf latent heat flux"                    unit="W/m2"     />
-          <field id="qlatisf3d"    long_name="Ice shelf latent heat flux"                    unit="W/m2"     grid_ref="grid_T_3D" />
-          <field id="qhcisf"       long_name="Ice shelf heat content flux"                   unit="W/m2"     />
-          <field id="qhcisf3d"     long_name="Ice shelf heat content flux"                   unit="W/m2"     grid_ref="grid_T_3D" />
-          <field id="isfgammat"    long_name="transfert coefficient for isf (temperature) "  unit="m/s"      />
-          <field id="isfgammas"    long_name="transfert coefficient for isf (salinity)    "  unit="m/s"      />
-          <field id="stbl"         long_name="salinity in the Losh tbl                    "  unit="PSU"      />
-          <field id="ttbl"         long_name="temperature in the Losh tbl                 "  unit="C"        />
-          <field id="utbl"         long_name="zonal current in the Losh tbl at T point    "  unit="m/s"      />
-          <field id="vtbl"         long_name="merid current in the Losh tbl at T point    "  unit="m/s"      />
-          <field id="thermald"     long_name="thermal driving of ice shelf melting        "  unit="C"        />
-          <field id="tfrz"         long_name="top freezing point (used to compute melt)   "  unit="C"        />
-          <field id="tinsitu"      long_name="top insitu temperature (used to cmpt melt)  "  unit="C"        />
-          <field id="ustar"        long_name="ustar at T point used in ice shelf melting  "  unit="m/s"      />
+          <field id="isftfrz_cav"     long_name="freezing point temperature at ocean/isf interface"                unit="degC"     />
+          <field id="isftfrz_par"     long_name="freezing point temperature in the parametrization boundary layer" unit="degC"     />
+          <field id="fwfisf_cav"      long_name="Ice shelf melt rate"                           unit="kg/m2/s"  />
+          <field id="fwfisf_par"      long_name="Ice shelf melt rate"                           unit="kg/m2/s"  />
+          <field id="qoceisf_cav"     long_name="Ice shelf ocean  heat flux"                    unit="W/m2"     />
+          <field id="qoceisf_par"     long_name="Ice shelf ocean  heat flux"                    unit="W/m2"     />
+          <field id="qlatisf_cav"     long_name="Ice shelf latent heat flux"                    unit="W/m2"     />
+          <field id="qlatisf_par"     long_name="Ice shelf latent heat flux"                    unit="W/m2"     />
+          <field id="qhcisf_cav"      long_name="Ice shelf heat content flux of injected water" unit="W/m2"     />
+          <field id="qhcisf_par"      long_name="Ice shelf heat content flux of injected water" unit="W/m2"     />
+          <field id="fwfisf3d_cav"    long_name="Ice shelf melt rate"                           unit="kg/m2/s"  grid_ref="grid_T_3D" />
+          <field id="fwfisf3d_par"    long_name="Ice shelf melt rate"                           unit="kg/m2/s"  grid_ref="grid_T_3D" />
+          <field id="qoceisf3d_cav"   long_name="Ice shelf ocean  heat flux"                    unit="W/m2"     grid_ref="grid_T_3D" />
+          <field id="qoceisf3d_par"   long_name="Ice shelf ocean  heat flux"                    unit="W/m2"     grid_ref="grid_T_3D" />
+          <field id="qlatisf3d_cav"   long_name="Ice shelf latent heat flux"                    unit="W/m2"     grid_ref="grid_T_3D" />
+          <field id="qlatisf3d_par"   long_name="Ice shelf latent heat flux"                    unit="W/m2"     grid_ref="grid_T_3D" />
+          <field id="qhcisf3d_cav"    long_name="Ice shelf heat content flux of injected water" unit="W/m2"     grid_ref="grid_T_3D" />
+          <field id="qhcisf3d_par"    long_name="Ice shelf heat content flux of injected water" unit="W/m2"     grid_ref="grid_T_3D" />
+          <field id="ttbl_cav"        long_name="temperature in Losch tbl"                      unit="degC"     />
+          <field id="ttbl_par"        long_name="temperature in the parametrisation boundary layer" unit="degC" />
+          <field id="isfthermald_cav" long_name="thermal driving of ice shelf melting"          unit="degC"     />
+          <field id="isfthermald_par" long_name="thermal driving of ice shelf melting"          unit="degC"     />
+          <field id="isfgammat"       long_name="Ice shelf heat-transfert velocity"             unit="m/s"      />
+          <field id="isfgammas"       long_name="Ice shelf salt-transfert velocity"             unit="m/s"      />
+          <field id="stbl"            long_name="salinity in the Losh tbl"                      unit="1e-3"     />
+          <field id="utbl"            long_name="zonal current in the Losh tbl at T point"      unit="m/s"      />
+          <field id="vtbl"            long_name="merid current in the Losh tbl at T point"      unit="m/s"      />
+          <field id="isfustar"        long_name="ustar at T point used in ice shelf melting"    unit="m/s"      />
+          <field id="qconisf"         long_name="Conductive heat flux through the ice shelf"    unit="W/m2"     />
 
           <!-- *_oce variables available with ln_blk_clio or ln_blk_core -->
           <field id="qlw_oce"      long_name="Longwave Downward Heat Flux over open ocean"  standard_name="surface_net_downward_longwave_flux"                 unit="W/m2"  />
