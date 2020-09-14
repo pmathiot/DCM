@@ -15,7 +15,7 @@ set -x
 ulimit -s 
 ulimit -s unlimited
 
-if [ $DCMVERSION != '4.0.3' ] ; then echo 'Module DCM/4.0.3 not loaded; exit 1'; exit 1; fi
+if [ $DCMVERSION != '4.0.3_TIPACCS' ] ; then echo 'Module DCM/4.0.3_TIPACCS not loaded; exit 1'; exit 1; fi
 
 CONFIG=<CONFIG>
 CASE=<CASE>

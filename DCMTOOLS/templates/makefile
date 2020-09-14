@@ -107,8 +107,8 @@ compile: check_module copyfile copynamelist
 
 check_module:
 	@echo ""
-ifneq ($(DCMVERSION),4.0.3) 
-	@echo 'module DCM/4.0.3 not loaded; exit 1'
+ifneq ($(DCMVERSION),4.0.3_TIPACCS) 
+	@echo 'module DCM/4.0.3_TIPACCS not loaded; exit 1'
 	@exit 1
 else
 	@echo "DCM version : $(DCMVERSION)"

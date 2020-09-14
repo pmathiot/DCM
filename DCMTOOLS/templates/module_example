@@ -26,7 +26,7 @@ conflict DCM
 conflict NEMODRAK
 
 # for Tcl script use only
-set             base_version    4.0.3
+set             base_version    4.0.3_TIPACCS
 set             base_path       $::env(DEVGIT)/DCM_${base_version}/DCMTOOLS
 setenv          DCMVERSION      $base_version
 setenv          HOMEDCM         $base_path
