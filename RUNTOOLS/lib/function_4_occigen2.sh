@@ -225,8 +225,9 @@ echo ${n2}-$(( n1 + n2 -1 )) " " $prog1 >> ./ztask_file.conf
         fi
 
 #srun --mpi=pmi2 -m cyclic --multi-prog  ./ztask_file.conf
+#--cpu_bind=map_cpu:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27\
 srun --mpi=pmi2  -m cyclic -K1 \
-    --cpu_bind=map_cpu:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27\
+    --cpu_bind=map_cpu:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23\
     --multi-prog  ./ztask_file.conf
                }
 # ---

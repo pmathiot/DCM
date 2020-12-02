@@ -84,8 +84,8 @@ CONTAINS
       !                          ! initialised variable with extra haloes to zero
       ssu_e(:,:) = 0._wp   ;   ssv_e(:,:) = 0._wp   ;
       ua_e(:,:)  = 0._wp   ;   va_e(:,:)  = 0._wp   ;
-      ff_e(:,:)  = 0._wp   ;   sst_e(:,:) = 0._wp   ;
-      fr_e(:,:)  = 0._wp   ;   sss_e(:,:) = 0._wp   ; 
+      ff_e(:,:)  = 0._wp   ;   sst_e(:,:)  = 0._wp  ;
+      fr_e(:,:)  = 0._wp   ;   sss_e(:,:) = 0._wp   ;
       !
       IF ( ln_M2016 ) THEN
          toce_e(:,:,:) = 0._wp
@@ -409,13 +409,16 @@ CONTAINS
       REAL(wp) ::   zfact   ! local scalar
       CHARACTER(lc) :: cl_no
       !
+#if defined key_drakkar
+      NAMELIST/namberg_drk/ cn_icbrst_indir , cn_icbrst_in         ,   &
+         &                  cn_icbrst_outdir, cn_icbrst_out , cn_icbdir_trj
+#endif
       NAMELIST/namberg/ ln_icebergs    , ln_bergdia     , nn_sample_rate      , rn_initial_mass      ,   &
          &              rn_distribution, rn_mass_scaling, rn_initial_thickness, nn_verbose_write     ,   &
          &              rn_rho_bergs   , rn_LoW_ratio   , nn_verbose_level    , ln_operator_splitting,   &
          &              rn_bits_erosion_fraction        , rn_sicn_shift       , ln_passive_mode      ,   &
-         &              nn_test_icebergs                , rn_test_box         , ln_use_calving       ,   &
-         &              rn_speed_limit , cn_dir, sn_icb , ln_M2016            ,                          &
-         &              cn_icbrst_indir, cn_icbrst_in   , cn_icbrst_outdir    , cn_icbrst_out        ,   &
+         &              nn_test_icebergs , rn_test_box  ,                                                &
+         &              ln_use_calving , rn_speed_limit , cn_dir, sn_icb      , ln_M2016             ,   &
          &              ln_icb_grd
       !!----------------------------------------------------------------------
 
@@ -444,6 +447,16 @@ CONTAINS
       READ  ( numnam_cfg, namberg, IOSTAT = ios, ERR = 902 )
 902   IF( ios >  0 ) CALL ctl_nam ( ios , 'namberg in configuration namelist' )
       IF(lwm) WRITE ( numond, namberg )
+      !
+#if defined key_drakkar
+      REWIND( numnam_ref )              ! Namelist namberg in reference namelist: Iceberg parameters
+      READ  ( numnam_ref, namberg_drk, IOSTAT = ios, ERR = 903)
+903   IF( ios /= 0 ) CALL ctl_nam ( ios , 'namberg in reference namelist' )
+      REWIND( numnam_cfg )              ! Namelist namberg in configuration namelist : Iceberg parameters
+      READ  ( numnam_cfg, namberg_drk, IOSTAT = ios, ERR = 904 )
+904   IF( ios >  0 ) CALL ctl_nam ( ios , 'namberg in configuration namelist' )
+      IF(lwm) WRITE ( numond, namberg )
+#endif
       !
       IF(lwp) WRITE(numout,*)
       IF( ln_icebergs ) THEN
@@ -533,7 +546,7 @@ CONTAINS
 !{ DRAKKAR modification : NEMO reads restart files :
 !       <CN_ICBRST_INDIR>.<<nn_no-1>>/<CN_ICBRST_IN>-<<nn_no -1 >>_<RANK>.nc
       ! Add extension (job number to the restart dir. Differ for restart input and restart output
-      WRITE(cl_no,*) nn_no-1 ; cl_no = TRIM(ADJUSTL(cl_no) )
+      WRITE(cl_no,*) nn_no - 1 ; cl_no = TRIM(ADJUSTL(cl_no) )
       cn_icbrst_indir=TRIM(cn_icbrst_indir)//'.'//TRIM(cl_no)
       cn_icbrst_in= TRIM(cn_icbrst_in)//'-'//TRIM(cl_no)
          

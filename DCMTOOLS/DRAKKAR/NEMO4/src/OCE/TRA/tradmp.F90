@@ -319,7 +319,7 @@ CONTAINS
        !  deg E     ! deg E        !  deg N        ! Deg N        !  deg      !   days           !
        zlon1 = 27.4 ; zlon2 = 42.0 ;  zlat1 = 41.0 ; zlat2 = 47.5 ; zbw = 0.  ; ztrelax = 180. 
 
-       CALL resto_patch ( zlon1, zlon2, zlat1, zlat2, zbw, ztrelax , presto )
+!       CALL resto_patch ( zlon1, zlon2, zlat1, zlat2, zbw, ztrelax , presto )
 
        ! Red Sea
        ! Lonmin     ! Lonmax       ! Latmin        ! Latmax       ! Band      ! min relax time   !

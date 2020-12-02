@@ -5,8 +5,8 @@
 #SBATCH --threads-per-core=1
 #SBATCH --constraint=<CONSTRAINT>
 #SBATCH -J nemo_occigen
-#SBATCH -e nemo_occigen_<JPNI>_<JPNJ>_<JPNIJ>.e%j
-#SBATCH -o nemo_occigen_<JPNI>_<JPNJ>_<JPNIJ>.o%j
+#SBATCH -e nemo_occigen_<JPNIJ>.e%j
+#SBATCH -o nemo_occigen_<JPNIJ>.o%j
 #SBATCH --time=0:35:00
 #SBATCH --exclusive
 
@@ -14,8 +14,11 @@ set -x
 ulimit -s 
 ulimit -s unlimited
 export FORT_FMT_RECL=255
+. ~/bin/load_intelmodule.sh
 
-. ./includefile.sh_<JPNI>_<JPNJ>_<JPNIJ>
+. ./includefile.scal.sh_<JPNIJ>
+
+if [ $DCMVERSION != '4.0.3_TIPACCS' ] ; then echo 'Module DCM/4.0.3_TIPACCS not loaded; exit 1'; exit 1; fi
 
 CTL_DIR=$PDIR/RUN_${CONFIG}/${CONFIG_CASE}/CTL
 

@@ -114,9 +114,9 @@ getinitdmp()        {
 # ---
 # Get ice initialisation if required
 geticeini()        {
-    tmp=$(LookInNamelist ln_iceini_file namelist_ice namini ) ; tmp=$(normalize $tmp)
-    if [ $tmp = T ] ; then
-      filter=''
+    tmp=$(LookInNamelist nn_iceini_file namelist_ice namini )
+    if [ $tmp != 0 ] ; then
+      filter=''  # take all sn_xxx of the block
       blk=namini ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR namelist_ice
     fi
                    }
@@ -139,14 +139,14 @@ getshlat2d()        {
      filter=''
      tmp=$(LookInNamelist ln_shlat2d namelist namlbc_drk) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then
+       echo 'get shlat2d file ...'
        blk=namlbc_drk ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR
      fi
                     }
 # ---
 SetYears()          {
-     dbfile=${CONFIG_CASE}.db
      # look for years being used :
-     job_number=$( tail -1 $dbfile | awk '{print $1}' )
+     job_number=$( tail -1 $DBFILE | awk '{print $1}' )
      # determine the number of years to get according to the lenght of the run
      zn1=$(LookInNamelist nn_it000 namelist )
      zn2=$(LookInNamelist nn_itend namelist )
@@ -160,7 +160,7 @@ SetYears()          {
        yearm1=$(( year - 1 )) 
        yearp1=$(( year + $znyear ))
      else
-       yearm1=$( tail -2 $dbfile | head -1 | awk '{ print int($NF/10000) }' )
+       yearm1=$( tail -2 $DBFILE | head -1 | awk '{ print int($NF/10000) }' )
        yearm1=$(( yearm1 - 1 ))
        yearp1=$(( yearm1 + $znyear + 1 ))
      fi
@@ -190,7 +190,7 @@ getforcing()        {
          echo  required forcing files :
          echo  =======================
          # check for optional files and set filter
-         filter=''  
+         filter=''
          tmp=$( LookInNamelist ln_taudif );  tmp=$(normalize $tmp )
          if [ $tmp = F ] ; then filter="$filter | grep -v sn_tdif " ; fi
          tmp=$( LookInNamelist ln_clim_forcing );  tmp=$(normalize $tmp )
@@ -243,9 +243,9 @@ getforcing()        {
      if [ $tmp = T ] ; then blk=namsbc_wave ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR ;  fi
 
      # RUN_OFF 
-     filter='| grep -v sn_s_rnf | grep -v sn_t_rnf | grep -v sn_dep_rnf '
+     filter='| grep -v sn_s_rnf | grep -v sn_t_rnf | grep -v sn_dep_rnf | grep -v sn_i_rnf '
      tmp=$(LookInNamelist ln_rnf namelist) ; tmp=$(normalize $tmp )
-     if [ $tmp = T ] ; then blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR ;  fi
+     if [ $tmp = T ] ; then echo 'get runoff files'; blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR ;  fi
 
      # extra files 
      filter='| grep -v sn_rnf | grep -v sn_cnf '
@@ -272,13 +272,23 @@ getforcing()        {
        extra=1
      fi 
 
+     #   rnf iceberg file
+     tmp=$(LookInNamelist ln_rnf_icb namelist) ; tmp=$(normalize $tmp )
+     if [ $tmp = F ] ; then
+       filter="$filter | grep -v sn_i_rnf "
+     else
+       extra=1
+     fi
+
      if [ $extra = 1 ] ; then
+       echo "extra rnf files : $filter"
        blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR 
      fi
 
      # Chlorophyl file
      tmp=$(LookInNamelist ln_traqsr namelist) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then   # use light penetration
+         echo 'get Chlorophyl file'
          filter=''
          tmp=$(LookInNamelist ln_qsr_rgb namelist) ; tmp=$(normalize $tmp )   # use RGB parametrization
          if [ $tmp = T ] ; then 
@@ -294,6 +304,7 @@ getforcing()        {
      tmp=$(LookInNamelist ln_ssr namelist) ; tmp=$(normalize $tmp )   # use sea surface restoring
      filter=''
      if [ $tmp = T ] ; then   # use sea surface restoring
+         echo 'get ssr files'
         tmp=$(LookInNamelist nn_sstr namelist )       # use SST damping ?
         if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sst " ; fi
         tmp=$(LookInNamelist nn_sssr namelist )       # use SSS damping ?
@@ -309,14 +320,7 @@ getforcing()        {
 
      fi
           }
-# ---
-# get tidal mixing files (osolete now)
-gettmx()  {
-        filter=''
-        tmp=$(LookInNamelist ln_tmx_itf namelist ) ; tmp=$(normalize $tmp )
-        if [ $tmp = F ] ; then filter="$filter | grep -v sn_mskitf " ; fi
-        blk=namzdf_tmx ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
-          }
+
 # ---
 #  mixing_power_bot mixing_power_pyc mixing_power_cri decay_scale_bot decay_scale_cri
 getzdfiwm() { 
@@ -435,6 +439,7 @@ getbdy()  {
 # ---
 # get geothermal heating files
 getgeo()  {
+        echo 'get geothermal heat flux ...'
         filter=''
         blk=nambbc    ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                         getweight $blk $P_WEI_DIR $F_WEI_DIR
@@ -449,23 +454,31 @@ getcalving()  {
            blk=namberg ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
         fi
           }
+
+# ---
+# get 2d top tidal velocity
+getttv () {
+        filter=''
+	blk=namdrg_top_tipaccs ; getfiles $blk $P_DTA_DIR $F_DTA_DIR
+          }
+
 # ---
 # get isf files
 getisf () {
        filter=''
        nn_isf=$(LookInNamelist nn_isf  namelist)
-       blk=namsbc_isf
+       blk=namisf
        # need to get files only for nn_isf = 2 3 or 4
        if [ $nn_isf = 2 ] ; then  # 
-         filter='| grep -v sn_fwfisf | grep -v sn_rnfisf' 
+         filter='| grep -v sn_isfcav_fwf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
        if [ $nn_isf = 3 ] ; then  # 
-         filter='| grep -v sn_fwfisf | grep -v sn_Leff_isf ' 
+         filter='| grep -v sn_isfpar_zmax | grep -v sn_isfpar_zmin | grep -v sn_isfpar_fwf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
        if [ $nn_isf = 4 ] ; then  # 
-         filter='| grep -v sn_rnfisf | grep -v sn_Leff_isf | grep -v sn_depmax_isf | grep -v sn_depmin_isf' 
+         filter='| grep -v sn_isfpar_zmax | grep -v sn_isfpar_zmin | grep -v sn_isfpar_Leff'
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
           }
@@ -479,7 +492,7 @@ getdiaptr()  {
 # get obs data file
 getobs () {
   if [ $no != 1 ] ; then
-    ndastpdeb=$( tail -2 $CONFIG_CASE.db | head -1 | awk '{print $4}' )
+    ndastpdeb=$( tail -2 $DBFILE | head -1 | awk '{print $4}' )
   else
     ndastpdeb=$(LookInNamelist nn_date0)
   fi
@@ -618,7 +631,7 @@ getfiles()  {
          fi
 
          for f in $lst ; do
-           if [ $f != none ] ; then   # non used bn_xxx are set to none
+           if [[ $f != none && $f != 'NOT_USED' ]] ; then   # non used bn_xxx are set to none
            ln_clim=$(getblock $1 $namelist | awk '{if ( index($1,zstr) != 0 ) print $0}' zstr=$zstr | grep $f  |  awk -F, '{ print $5 }' | sort -u )
            ln_clim=$(normalize $ln_clim )
            # look for file_type (ie yearly monthly weekly ... )
@@ -1367,7 +1380,8 @@ eof
          # end scalar file
          fi
          ln -sf $MERGE_EXEC ./
-             runcode $NB_NPROC_MER ./\$mergeprog -F -c $CN_DOMCFG -r
+         lst0000=\`ls ${CONFIG_CASE}*0000.nc\`
+             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $CN_DOMCFG -r
 eof
   copy $1 $P_CTL_DIR
             }
@@ -1429,6 +1443,19 @@ mergefiles_ens()  {
          cd $TMPDIR  # for the remnant of the script
               }
 # ---
+
+# Prepare a script for merging icb traj files (using mergeproc- off-line).
+  process_icb_trj() {
+     if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
+     echo "rebuild trajectory_icebergs_${no} ..."
+     python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+     if [ $? = 0 ] ; then
+        echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
+     else
+        echo "rebuild trajectory_icebergs_${no} FAILED"
+     fi
+     }
+
 # mk_post_process : function that build a script to launch zoomed area post processing in parallel
 mk_post_process()  {
     cat << eof > $1
@@ -1728,13 +1755,13 @@ update_db_file()  {
      if [ -f nitend.txt ] ; then  # change nitend by its real value
        echo modified nitend on the fly, correct db file
        newval=$(cat nitend.txt)
-       nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
-       nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
+       nit000=`tail -1 $DBFILE | awk '{print $2}' `
+       nitend=`tail -1 $DBFILE | awk '{print $3}' `
        nwrite=$(LookInNamelist nn_write namelist)
        # newnitend is computed as in NEMO
        newnitend=$( echo $nit000 $newval $nwrite | awk '{ print $1 - 1 + int( ( $2 - $1 ) / $3 +1 ) * $3 }')
-       sed -e "s/ $nitend\$/ $newnitend/" $CONFIG_CASE.db > tmpdb
-       mv tmpdb $CONFIG_CASE.db
+       sed -e "s/ $nitend\$/ $newnitend/" $DBFILE > tmpdb
+       mv tmpdb $DBFILE
        # also update the current namelist for restart renaming to work
        sed  -e "/nn_itend/s/$nitend/ $newnitend/" namelist > znamelist
        mv znamelist namelist
@@ -1742,20 +1769,20 @@ update_db_file()  {
      fi
 
      # add last date at the current line
-     nline=$(wc $CONFIG_CASE.db | awk '{print $1}')
+     nline=$(wc $DBFILE | awk '{print $1}')
 
      # aammdd is the ndastp of the last day of the run ...
      # where can we get it ???? : in the ocean.output for sure !!
      aammdd=$( cat $output_ref | grep date | tail -1 | awk '{print $NF}' )
 
     # Look for line in db file  with only 3 columns, keep this line in last
-    last=$( cat $CONFIG_CASE.db | awk ' NF == 3 ' )
+    last=$( cat $DBFILE | awk ' NF == 3 ' )
     ncol=$( echo $last | wc -w )  # ncol = 0 means no 3 colums line found
     if [ $ncol = 0 ] ; then
       echo "db file is up to date with respect to date $aammdd"
     else
-      sed -e "s/$last/$last\ $aammdd/" $CONFIG_CASE.db > tmpdb
-      mv -f tmpdb $CONFIG_CASE.db
+      sed -e "s/$last/$last\ $aammdd/" $DBFILE > tmpdb
+      mv -f tmpdb $DBFILE
     fi
 
     # add a new last line for the next run
@@ -1766,8 +1793,8 @@ update_db_file()  {
    elif [ $ndays = 180 ] ; then
      dif=$(( 185 * $nstep_per_day ))
    else
-  nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
-  nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
+  nit000=`tail -1 $DBFILE | awk '{print $2}' `
+  nitend=`tail -1 $DBFILE | awk '{print $3}' `
 #     dif=$(( 365 * $nstep_per_day ))
      dif=$((  $nitend - $nit000  + 1  ))
    fi
@@ -1778,13 +1805,13 @@ update_db_file()  {
     # offer the opportunity to modify last line of db file on the fly: use newdb last line if any
     if [ -f newdb ] ; then
       line=$( cat newdb )
-      echo $line >> $CONFIG_CASE.db
+      echo $line >> $DBFILE
       \rm newdb
     elif [ -f newdb.$nop1 ] ; then
       line=$( cat newdb.$nop1 )
-      echo $line >> $CONFIG_CASE.db
+      echo $line >> $DBFILE
     else
-      echo $nop1 $nit000 $nitend >> $CONFIG_CASE.db
+      echo $nop1 $nit000 $nitend >> $DBFILE
     fi
                   }
 

@@ -50,6 +50,9 @@ done
 
 rm log_*
 for n in $(seq $minproc $stpproc $maxproc)  ; do 
+out.write(script+' '+str(jpni[i])+' '+str(jpnj[i])+\
+       ' '+str(proc[i])+' '+str(xios[i])+'\n')
+   
    nn=$(printf "%05d" $n)
    # look for the best decomposition in 20 core window around target value
    for m in $(seq $(( n -10)) $((n + 10)) ) ; do 

@@ -25,7 +25,7 @@ mkdir -p  $P_S_DIR/ANNEX
 
 ## Generic name for some directories
 CN_DIAOBS=${CONFIG_CASE}-DIAOBS     # receive files from diaobs functionality, if used
-CN_DIRRST=${CONFIG_CASE}-RST        # receive restart files
+CN_DIRRST=./                        # receive restart files
 CN_DIRICB=${CONFIG_CASE}-ICB        # receive Iceberg Output files
 
 ## -----------------------------------------------------
@@ -53,8 +53,8 @@ copy waytmp $P_CTL_DIR/
 echo " [1.1]  copy script and get number ($$) usefull for run"
 echo " ======================================================"
 
-rcopy $P_UTL_DIR/bin/datfinyyyy ./
-rcopy $P_CTL_DIR/includefile.sh_${JPNI}_${JPNJ}_${JPNIJ}  includefile.sh 
+rcopy $P_UTL_DIR/datfinyyyy ./
+rcopy $P_CTL_DIR/includefile.scal.sh_${JPNIJ}  includefile.sh 
 
 ## copy the executable NEMO
 set -x
@@ -138,13 +138,13 @@ echo "   *** XIOS   = " $XIOS
 echo "   *** NEWXML = " $NEWXML
 
 ## copy of the control files ( .db and and template namelist )
-rcopy $P_CTL_DIR/namelist.${CONFIG_CASE}_${JPNI}_${JPNJ}_${JPNIJ} namelist
-rcopy $P_CTL_DIR/$CONFIG_CASE.db ./
+rcopy $P_CTL_DIR/namelist.${CONFIG_CASE} namelist
+rcopy $P_CTL_DIR/$DBFILE ./
 
 if [ $AGRIF = 1 ] ; then
     initagrif 
     for idx in ${agrif_pref[@]} ; do
-        rcopy $P_CTL_DIR/${idx}_namelist.${CONFIG_CASE}_${JPNI}_${JPNJ}_${JPNIJ} ${idx}_namelist
+        rcopy $P_CTL_DIR/${idx}_namelist.${CONFIG_CASE} ${idx}_namelist
         rcopy $P_CTL_DIR/${idx}_namelistio ${idx}_namelistio
     done
 fi
@@ -156,9 +156,9 @@ echo " [2.1]  ocean namelist"
 echo " ====================="
 
 ## exchange <wildcards>  with the correct info from db
-no=`tail -1 $CONFIG_CASE.db | awk '{print $1}' `
-nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
-nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
+no=`tail -1 $DBFILE | awk '{print $1}' `
+nit000=`tail -1 $DBFILE | awk '{print $2}' `
+nitend=`tail -1 $DBFILE | awk '{print $3}' `
 
 if [ $no != 1 ] ; then
     restart_flag=true
@@ -219,7 +219,7 @@ if [ $AGRIF = 1 ] ; then
 fi
 
 echo "   ***  Check/Create directory : ${CONFIG_CASE}-${DIROUText}.$no"
-mkdir -p  $DDIR/${CONFIG_CASE}-${DIROUText}_${JPNI}_${JPNJ}_${JPNIJ}.$no
+mkdir -p  $DDIR/${CONFIG_CASE}-${DIROUText}_${JPNIJ}.$no
 
 echo "   ***  Check/Create directory : ${CONFIG_CASE}-${MOOROUText}.$no"
 MOOROUText=MOORINGS
@@ -241,7 +241,7 @@ rdt=$(LookInNamelist rn_rdt)
 
 ## place holder for time manager (eventually)
 if [ $no != 1 ] ; then
-    ndastpdeb=`tail -2 $CONFIG_CASE.db | head -1 | awk '{print $4}' `
+    ndastpdeb=`tail -2 $DBFILE | head -1 | awk '{print $4}' `
 else
     ndastpdeb=$(LookInNamelist nn_date0)
 fi
@@ -307,6 +307,11 @@ DOMAINcfg=0
 
 echo "   ***  DOMAINcfg = $DOMAINcfg"
 
+# CTL output
+RUNSTAT=0
+  tmp=$( LookInNamelist sn_cfctl%l_runstat namelist namctl ) ; tmp=$( normalize $tmp )
+  if [ $tmp = T ] ; then RUNSTAT=1 ; fi
+
 BDY=0
   tmp=$(LookInNamelist ln_bdy namelist nambdy  ) ; tmp=$(normalize $tmp)
   if [ $tmp = T ] ; then BDY=1 ; fi
@@ -314,7 +319,7 @@ BDY=0
 # Ice model
 ICE_INI=0 ; ICE_DMP=0
 if [ $ICE = 1 ] ; then   # SI3
-    tmp=$(LookInNamelist ln_ice namelist_ice namini ) ; tmp=$(normalize $tmp)
+    tmp=$(LookInNamelist ln_iceini namelist_ice namini ) ; tmp=$(normalize $tmp)
     if [ $tmp = T ] ; then ICE_INI=1 ; fi
 
 #   No ice damping so far in SI3/NEMO4 ....
@@ -381,6 +386,10 @@ ICB=0
 tmp=$(LookInNamelist ln_icebergs) ; tmp=$(normalize $tmp)
 if [ $tmp = T ] ; then
     ICB=1
+    if [ $ENSEMBLE = 1 ] ; then 
+        echo " management of ICB trajectory output not done with ensemble; stop"
+	exit 42
+    fi
     echo "   ***  Check/Create directory : ${CN_DIRICB}.$no"
     mkdir -p $DDIR/${CN_DIRICB}.$no 
 fi
@@ -388,9 +397,15 @@ echo "   ***  ICB  = $ICB"
 
 # Ice Shelves 
 ISF=0
-tmp=$(LookInNamelist ln_isf namelist namsbc) ; tmp=$(normalize $tmp)
+tmp=$(LookInNamelist ln_isf namelist namisf) ; tmp=$(normalize $tmp)
 if [ $tmp = T ] ; then ISF=1   ; fi
 echo "   ***  ISF  = $ISF"
+
+# Top tidal velocity
+TTV=0
+tmp=$(LookInNamelist ln_2d_ttv namelist namdrg_top_tipaccs) ; tmp=$(normalize $tmp)
+if [ $tmp = T ] ; then TTV=1   ; fi
+echo "   ***  TTV  = $TTV"
 
 # Poleward Transport diagnostics
 DIAPTR=0
@@ -582,7 +597,7 @@ eof
         fi
         
         cat ztemp.xml | sed -e "s/<NEMO.MEMBER>/nemo$mmm/"  \
-            -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS_${JPNI}_${JPNJ}_${JPNIJ}.$no/$nnn@" \
+            -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS_${JPNIJ}.$no/$nnn@" \
             -e "s/<CASE>/$CASE${mmm}/" >>  iodef.xml
        # Then deal with other members (each identical so far)
         cat iodef_nemo_context.xml | sed -e "/04-file.xml/r   04-file.xml"   \
@@ -594,7 +609,7 @@ eof
             mmm=$(getmember_extension $member)  # if no ensemble, this function return empty string
             nnn=$(getmember_extension $member nodot )
             cat ztemp.xml | sed -e "s/<NEMO.MEMBER>/nemo$mmm/"  \
-                -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS_${JPNI}_${JPNJ}_${JPNIJ}.$no/$nnn@" \
+                -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS_${JPNIJ}.$no/$nnn@" \
                 -e "s@<MOORDIR>@$DDIR/${CONFIG_CASE}-MOORINGS.$no/$nnn@" \
                 -e "s/<CASE>/$CASE${mmm}/" >>  iodef.xml
         done
@@ -610,7 +625,7 @@ eof
     # set <OUTDIR> in iodef.xml
     ndate0=$(LookInNamelist nn_date0)
    for  xml_fil in *.xml ; do
-    cat $xml_fil | sed -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS_${JPNI}_${JPNJ}_${JPNIJ}.$no@"  \
+    cat $xml_fil | sed -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS_${JPNIJ}.$no@"  \
         -e "s@<MOORDIR>@$DDIR/${CONFIG_CASE}-MOORINGS.$no@" \
         -e "s/<CONFIG>/$CONFIG/" -e "s/<CASE>/$CASE/" \
         -e "s/<NDATE0>/$ndate0/" > ztmp
@@ -650,6 +665,7 @@ fi
 
 ## Tidal mixing (Delavergne)
 if [ $ZDFIWM = 1 ] ; then
+    echo 'get iwm files ...'
     getzdfiwm
 fi
 
@@ -671,6 +687,11 @@ fi
 ## iceshelve fluxes and/or circulation
 if [ $ISF = 1 ] ; then
     getisf
+fi
+
+## top tidal velocity
+if [ $TTV = 1 ] ; then
+    getttv
 fi
 
 ## diaobs : for memory : needed files are already copied (when updating namelist)
@@ -711,7 +732,10 @@ fi
 
 ## Ice initial condition only if no = 1
 if [ $ICE_INI = 1 -a $no -eq 1 ] ; then
-    rapatrie $ICEINI  $P_I_DIR $F_INI_DIR $NEMO_ICEINI
+    tmp=$(LookInNamelist ln_iceini_file namelist_ice namini ) ; tmp=$(normalize $tmp)
+    if [ $tmp = T ] ; then 
+       geticeini
+    fi
 fi
 
 ## Ice damping file 
@@ -986,7 +1010,7 @@ else
 ##### I C B
 ###########
             if [ $ICB = 1 ] ; then  # need iceberg restart
-                ICB_RST_IN=$(LookInNamelist cn_iscbrst_in  )$mmm
+                ICB_RST_IN=$(LookInNamelist cn_icbrst_in  )$mmm
                 ICB_RST_OUT=$(LookInNamelist cn_icbrst_out )$mmm
 
 
@@ -1044,396 +1068,3 @@ else
 fi
 date
 exit  # Scalability tests stop here
-#--------------------------------------------------------
-#########################################################
-#--------------------------------------------------------
-echo '(5) Post processing of the run'
-echo '------------------------------'
- # gives the rights r to go
-chmod -R go+r  $TMPDIR
-cp layout.dat $P_S_DIR/ANNEX/
-
-  # check flags in namelist for further processing (before changing namelist)
-  tmp=$(LookInNamelist ln_timing ) ; tmp=$( normalize $tmp )
-  if [ $tmp = 'T' ] ; then ntiming=1 ; fi  
-  tmp=$(LookInNamelist ln_meshmask ) ; tmp=$( normalize $tmp )
-  if [ $tmp = 'T' ] ; then nmsh=1 ; fi  
-
-echo ' [5.1] check the status of the run'
-echo ' ================================'
-  # touch OK.member to mark successfull members
-nok=0
-for member in $(seq $ENSEMBLE_START $ENSEMBLE_END) ; do
-    mmm=$(getmember_extension $member)
-    outfile=ocean.output$mmm
-    # should be modified in NEMO to make it safer ( eg. write(numout,*) ' Run completed successfully'  )
-    if [ "$(tail -20 $outfile | grep AAAAAAAA)" = 'AAAAAAAA' ] ; then touch OK$mmm ; nok=$(( nok + 1 )); fi
-
-done
-
-  # check nok vs ensemble size
-STOP_FLAG=0    # 0 : run is clean,  1 : at least 1 member failed,   2: at least one member failed and no step done
-if [[ $nok < $ENSEMBLE_SIZE ]] ; then 
-    echo "   ---  WARNING: Some members failed, we set a stop flag"
-    STOP_FLAG=1
-fi
-
-for member in $(seq $ENSEMBLE_START $ENSEMBLE_END) ; do
-    mmm=$(getmember_extension $member)
-    if [ ! -f time.step$mmm ] ; then
-        echo "   ---  WARNING: No time-step are made by NEMO, for member  $member  Earlier crash."   
-        touch STOP$mmm
-        STOP_FLAG=2
-    fi 
-done
-
-  # Post process the run according to the STOP_FLAG
-case $STOP_FLAG in
-    ( 0 )
-    date
-    ext=$no
-    echo "   ***  Run OK"
-    echo ' [5.2] rename  the restart files'
-    echo ' ==============================='
-    if [ $RST_READY = 1 ] ; then
-       echo "   *** Restart files are ready from NEMO ..."
-    else
-    for member in  $(seq $ENSEMBLE_START $ENSEMBLE_END) ; do
-        mmm=$(getmember_extension $member)
-        nnn=$(getmember_extension $member nodot)
-       # clean previous restart file from the DDIR/xxx-R directory
-        clean_res $prev_ext
-
-       # O C E A N 
-       # *********
-        OCE_RST_IN=$(LookInNamelist cn_ocerst_in )
-        OCE_RST_OUT=$(LookInNamelist cn_ocerst_out )
-
-        renamerst  $OCE_RST_IN $OCE_RST_OUT 
-
-       # I C E 
-       # *****
-        if [ $ICE = 1 ] ; then
-            ICE_RST_IN=$(LookInNamelist cn_icerst_in namelist_ice)
-            ICE_RST_OUT=$(LookInNamelist cn_icerst_out namelist_ice )
-
-          renamerst  $ICE_RST_IN $ICE_RST_OUT 
-        fi
-
-       # P A S S I V E   T R A C E R S
-       # *****************************
-        if [ $TOP = 1 ] ; then
-            TRC_RST_IN=$(LookInNamelist cn_trcrst_in namelist_top)
-            TRC_RST_OUT=$(LookInNamelist cn_trcrst_out namelist_top)
-
-          renamerst  $TRC_RST_IN $TRC_RST_OUT 
-        fi
-
-       # T R D  M L D 
-       # ************
-        if [ $TRDMLD = 1 ] ; then
-            TRD_RST_IN=$(LookInNamelist cn_trdrst_in )
-            TRD_RST_OUT=$(LookInNamelist cn_trdrst_out )
-
-            renamerst  $TRD_RST_IN $TRD_RST_OUT 
-        fi
-        
-       # S T O 
-       # *****
-        if [ $STO = 1 ] ; then
-            STO_RST_IN=$(LookInNamelist cn_storst_in)
-            STO_RST_OUT=$(LookInNamelist cn_storst_out)
-
-            renamerst  $STO_RST_IN $STO_RST_OUT 
-        fi
-
-       # I C B
-       # *****
-        if [ $ICB = 1 ] ; then
-            ICB_RST_IN=restart_icebergs
-            ICB_RST_OUT=icebergs_restart
-
-#       ICB restart file are not named as other restart files ( with nitend in the name). Som renamerst does not work
-#       till some update in the icb code.  
-#        renamerst  $ICB_RST_IN $ICB_RST_OUT
-            for f in ${ICB_RST_OUT}* ; do 
-                g=$( echo $f | sed -e "s/$ICB_RST_OUT/$ICB_RST_IN/").$ext
-                mv $f $g
-            done
-        fi
-
-    done      # loop on members
-    fi   # RST_READY
-
-    date
-    echo ' [5.3] Update the CONFIG_CASE.db file'
-    echo ' ===================================='
-    mmm=$(getmember_extension $ENSEMBLE_START) # take the first member(if any) for reference
-    output_ref=ocean.output$mmm  # used in update_db_file function to infer the ending date
-    update_db_file 
-    cat $CONFIG_CASE.db
-    copy $CONFIG_CASE.db $P_CTL_DIR/ 
-
-    date
-    echo ' [5.4] Rename namelists, ocean.output and other text files. Copy to P_S_DIR'
-    echo ' =========================================================================='
-    rename_txt_files  $ext
-      # from now, take care of using the correct namelist name in the calls !
-
-    date
-    echo ' [5.5] Make restart tar files '
-    echo ' ============================='
-     # Build a script (to be submitted) for saving the individual ${filext}.$ext 
-     # restart files into a set of tar files and expatrie_res them.
-    mksavrst  zsrst.$ext.sh   
-
-     # Submit the save-restart script 
-     # When this script is finished ( asynchronously), there is a touch statement on file RST_DONE$mmm.$ext,
-     # that need to be checked before cleaning. 
-    submit ${P_CTL_DIR}/zsrst.$ext.sh
-    cd $TMPDIR   # back in TMPDIR for sure
-
-    date
-    echo ' [5.6] Ready to re-submit the job NOW (to take place in the queue)'
-    echo ' ================================================================='
-    TESTSUB=$( wc $CONFIG_CASE.db | awk '{print $1}' )
-    if [ $TESTSUB -le  $MAXSUB -o -f  FORCE_RESUB ] ; then
-        submit  ${P_CTL_DIR}/${SUBMIT_SCRIPT}
-        cd $TMPDIR
-        cat $TMPDIR/logsubmit
-    else
-        echo "   --- WARNING: Maximum auto re-submit reached."
-    fi ;;
-
-    ( 1 | 2 )   # The run crashed :( . Send back some infos on the CTL directory
-    date
-    echo "   ---  WARNING: Run crashed."
-    ext=$$.'ABORT'
-    rename_txt_files $ext $P_CTL_DIR  # rename text files and copy ocean.output and run.stat to P_CTL_DIR
-      # from now, take care of using the correct namelist name in the calls !
-
-     # rename the output directory extension in order not to mix the output with correct run
-    echo "   ***  ${CONFIG_CASE}-${DIROUText}.$no renamed to ${CONFIG_CASE}-${DIROUText}.$ext"
-    mv $DDIR/${CONFIG_CASE}-${DIROUText}.$no $DDIR/${CONFIG_CASE}-${DIROUText}.$ext 
-    if [ $DIAOBS = 1 ] ; then
-        echo "   ***  ${CN_DIAOBS}.$no renamed to ${CN_DIAOBS}.$ext"
-        mv $DDIR/${CN_DIAOBS}.$no $DDIR/${CN_DIAOBS}.$ext 
-    fi ;;
-esac
-
-cd $TMPDIR
-echo '(6) : Final Post Processing after next run is queued'
-echo '----------------------------------------------------'
-date
-
-case $STOP_FLAG in
-    ( 0 | 1 )  # run is OK or at least some step were performed, build the nc output files
-    if [ $STOP_FLAG = 0 ] ; then ext=$no     ; fi
-    if [ $STOP_FLAG = 1 ] ; then ext=$$.'ABORT' ; fi
-
-
-    if [ $XIOS = 1 ] ; then
-        echo ' [6.1] Process the rebuild of nc file from XIOS files '
-        echo ' ========================================================='
-
-        cp $CN_DOMCFG  $DDIR/${CONFIG_CASE}-${DIROUText}.$ext/
-        cp iodef.xml domain_def.xml $DDIR/${CONFIG_CASE}-${DIROUText}.$ext/
-   
-        if [ $DIAPTR = 1 ] ; then  # process diaptr files (one_file mode). Only rename
-        date
-        echo ' [6.1.1] Process the rename of diaptr nc file from XIOS files '
-        echo ' ========================================================='
-            for member in $(seq  $ENSEMBLE_START $ENSEMBLE_END ) ; do
-              nnn=$(getmember_extension $member nodot)
-              mmm=$(getmember_extension $member      )
-              cd  $DDIR/${CONFIG_CASE}-${DIROUText}.$ext/$nnn
-              for f in ${CONFIG_CASE}${mmm}*diaptr_*.nc ; do
-                 if [ -f $f ] ; then  # check if $f exist ( case of ln_diaptr=T but no i/o in iodef)
-                   freq=$( echo $f | awk -F_ '{print $2}' )
-                   tmp=${f##*-} ; indastp=${tmp%.nc}
-                   tag=y${indastp:0:4}m${indastp:4:2}d${indastp:6:2}
-                   g=${CONFIG_CASE}${mmm}_${tag}.${freq}_diaptr.nc
-                   mkdir -p ${freq}_OUTPUT
-                   mv $f ${freq}_OUTPUT/$g
-                 fi
-              done
-            done
-        fi
-        cd $TMPDIR
-
-        date
-        echo ' [6.1.2] Process the rename of zoomed  nc file from XIOS files '
-        echo ' ========================================================='
-#      # look for zoom (in one_file mode). Assume domain_ref without 'grid' keyword
-        if [ -f 06-secme.xml ] ; then    # case of ensemble runs : no need to scan the full iodef.xml (huge!)
-           cat 0*sec*xml > ziodef.xml
-        else
-           ln -sf iodef.xml ziodef.xml
-        fi
-        iodef=ziodef.xml
-        lis_zoom_tmp=$( for f in $(  grep -i domain_ref $iodef | grep -vi grid_ ) ; do \
-            cmd=$(echo $f | grep domain_ref ) ; \
-            if [ $cmd ] ; then eval $cmd ; echo $domain_ref ;fi ;\
-                   done )
-        lis_zoom=$( for zoom in $lis_zoom_tmp ; do \
-            echo $zoom ; done | sort -u )
-       # check enabled zoom
-        lis_zoom_enabled=''
-        zoom_enable=''
-        for zoom in $lis_zoom ; do
-            grep -wB 1 $zoom $iodef | head -1 | grep -iq 'enabled=".true."'
-            if [ $? = 0 ] ; then
-                lis_zoom_enabled="$lis_zoom_enabled $zoom"
-                zoom_enable=1
-            fi
-        done
-        lis_zoomid=$( for f in $lis_zoom_enabled ; do n=$(( ${#f} - 1 )) ; echo ${f:0:$n} ; done | sort -u )
-
-        if [ $zoom_enable ] ; then
-          if [ ! -f $CTL_DIR/post_process_zoom.sh ] ; then
-             mk_post_process post_process_zoom.sh
-             cp post_process_zoom.sh $CTL_DIR
-           else
-             cp $CTL_DIR/post_process_zoom.sh ./
-          fi
-         
-          if [ $ENSEMBLE = 1 ] ; then
-# JMM CAUTION not a generic function for all machines ...
-            cmd='mpirun --bynode'
-            for n in $(seq $ENSEMBLE_START $ENSEMBLE_END ) ; do
-              cmd="$cmd -np 1 ./post_process_zoom.sh $n $ext :"
-            done
-            cmd=${cmd%:}
-            $cmd
-        #   runcode_mpmd ./zpp.conf.$ext
-          else
-             ./post_process_zoom.sh -1 $ext
-          fi
-          cd $TMPDIR
-        fi
-        # look for one-file or multiple_file mode (for global files)
-        # file_definition is defined only once (must be) in iodef.xml file
-        # if zoom are used, one_file is forced at the level of the file object
-        MULTIPLE_FILE=$( grep '<file_definition' iodef.xml | \
-            awk '{ i=1 ; while (i <= NF ) { print $i ; i++ } }' | \
-            grep type | grep -q 'one_file' ; echo $? )
-        # also check if there is only 1 XIOS server ==> ONE_FILE
-        if [ $NB_NPROC_IOS = 1 ] ; then MULTIPLE_FILE=0 ; fi
-        if [ $MULTIPLE_FILE = 1 ] ; then
-            if [ $MERGE = 0 ] ; then
-                echo "   ***  Recombine for XIOS using rebuild_nemo in a batch"
-                mkbuild_merge zmergxios.$ext.sh  
-                submit ${P_CTL_DIR}/zmergxios.$ext.sh
-            else  # MERGE on the fly 
-                echo "   ***  Recombine for XIOS using mergefile_mpp2 on the fly"
-                if [ $ENSEMBLE = 1 ] ; then 
-                    mergefiles_ens
-                else
-                    mergefiles 
-                fi
-            fi
-        else   # one_file output 
-         # almost nothing to do except renaming and correction of nav_lon,nav_lat if necessary
-            cd $DDIR/${CONFIG_CASE}-XIOS.$ext/
-            post_process_one_file 
-            cd $TMPDIR
-        fi
-        
-    fi 
-
-    if [ $nmsh  != 0 ] ; then 
-        date
-        echo ' [6.2] Process the rebuild of mesh_mask files'
-        echo ' ============================================'
-            echo '  ***  netcdf meshmask files'
-          # To be done
-            echo "  ---  WARNING: Missing script for this case ..."
-    fi 
-
-    if [ $STOP_FLAG = 0 -a $DIAOBS = 1 ] ; then
-        date
-        echo '   [6.2.2] Recombine and save OBS fdbk files '
-        echo '   ------------------------------------------'
-#        cp ./fbcomb.exe $DDIR/${CN_DIAOBS}.$ext
-        cd $DDIR/${CN_DIAOBS}.$ext
-
-        if [ $ENACT = 1 ] ; then
-            mkdir -p  $P_S_DIR/OBS/
-            cat << eof > ztarobs.$ext.sh
-#!/bin/bash
-mmm=\$1
-tar cf $P_S_DIR/OBS/${CONFIG_CASE}\${mmm}_enact_fdbk.$ext.tar enact\${mmm}_fdbk_*.nc
-eof
-            chmod 755 ./ztarobs.$ext.sh
-            cmd="mpirun --bynode "
-            for member in  $(seq $ENSEMBLE_START $ENSEMBLE_END) ; do
-                mmm=$(getmember_extension $member)
-# JMM : can be // with runcode_mpmd (mergefile_mpp2 )
-#               ./fbcomb.exe  enact${mmm}_fdbk.nc.$ext enact${mmm}_fdbk_*.nc
-#               expatrie enact${mmm}_fdbk.nc.$ext $F_S_DIR ${CONFIG_CASE}${mmm}_enact_fdbk.nc.$ext
-#               mv enact${mmm}_fdbk.nc.$ext $P_S_DIR/OBS/${CONFIG_CASE}${mmm}_enact_fdbk.nc.$ext
-#                tar cf $P_S_DIR/OBS/${CONFIG_CASE}${mmm}_enact_fdbk.$ext.tar enact${mmm}_fdbk_*.nc
-             cmd="$cmd -np 1 ./ztarobs.$ext.sh $mmm :"
-            done
-            cmd=${cmd%:}  # eliminate last :
-            $cmd
-        fi
-
-        if [ $SLA = 1 ] ; then
-            mkdir -p  $P_S_DIR/OBS/
-            cat << eof > ztarobssla.$ext.sh
-#!/bin/bash
-mmm=\$1
-tar cf $P_S_DIR/OBS/${CONFIG_CASE}\${mmm}_sla_fdbk.$ext.tar enact\${mmm}_fdbk_*.nc
-eof
-            chmod 755 ./ztarobssla.$ext.sh
-            cmd="mpirun --bynode "
-            for member in  $(seq $ENSEMBLE_START $ENSEMBLE_END) ; do
-                mmm=$(getmember_extension $member)
-# JMM : can be // with runcode_mpmd (mergefile_mpp2 )
-#               ./fbcomb.exe  sla${mmm}_fdbk.nc.$ext sla${mmm}_fdbk_*.nc
-#               expatrie sla${mmm}_fdbk.nc.$ext $F_S_DIR ${CONFIG_CASE}${mmm}_sla_fdbk.nc.$ext
-#               mv sla${mmm}_fdbk.nc.$ext $P_S_DIR/OBS/${CONFIG_CASE}${mmm}_sla_fdbk.nc.$ext
-#             tar cf $P_S_DIR/OBS/${CONFIG_CASE}${mmm}_sla_fdbk.$ext.tar sla${mmm}_fdbk_*.nc
-             cmd="$cmd -np 1 ./ztarobssla.$ext.sh $mmm :"
-            done
-            cmd=${cmd%:}  # eliminate last :
-            $cmd
-        fi
-        cd $TMPDIR  # back to TMPDIR
-    fi
-
-    date
-    echo ' [6.3] Pack some files in annex tar file for archiving on F machine'
-    echo ' =================================================================='
-     # note : next tar command takes into account all members of an ensemble run and all AGRIF zoom envolved
-    tar cf tarfile.${CONFIG_CASE}_annex.$ext *run.stat*.$ext *ocean.outpu*.$ext *namelist_oce.$ext
-    if [ $ntiming = 1 ] ; then tar rf tarfile.${CONFIG_CASE}_annex.$ext *timing.outpu*.$ext ; fi
-    if [ $ICE = 1     ] ; then tar rf tarfile.${CONFIG_CASE}_annex.$ext *namelist_ice.$ext  ; fi
-    
-    expatrie tarfile.${CONFIG_CASE}_annex.$ext  $F_S_DIR tarfile.${CONFIG_CASE}_annex.$ext
-
-    date
-    echo ' [6.4] Extra diags output (for memory) '
-    echo ' ========================='
-    if [ $IFLOAT = 1 ] ; then
-        echo '   ***  Floats'
-        expatrie trajec_float  $F_S_DIR ${CONFIG_CASE}_trajfloat.$ext
-        expatrie restart_float.out  $F_R_DIR  restart_float.$ext
-        if [ $RFLOAT = 0 ] ; then
-            echo "Ne pas effacer ce fichier.MERCI." > $P_CTL_DIR/float
-            chmod a-wx $P_CTL_DIR/float
-        fi
-    fi ;;
-
-    ( 2 )
-    date
-    echo ' [6.0] No step performed exit then'
-    echo '================================='
-    echo "   ===  ERROR : final exit "
-    exit ;;
-esac
-
-#########################################################################
-##                                END                                  ##
-#########################################################################

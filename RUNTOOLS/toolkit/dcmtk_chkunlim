@@ -38,15 +38,45 @@ while getopts :hvp:e:  opt
     esac
   done
 
+# check ncdump
+command -v ncdump > /dev/null
+if [[ $? != 0 ]]; then echo -e "\e[0;31;1m ERROR ncdump does not work; load netcdf module;\e[0m"; exit 42; fi
 
-if [ $lverbose = 0 ] ; then 
- for f in *$pattern*${ext} ; do 
-   ncdump -h $f | grep UNLIM | tr -d '(' |\
-          awk '{ if ( $(NF -1) == 0 ) print fich " : " $0 }' fich=$f 
-  done
+if [ $lverbose = 1 ] ; then
+   echo ''
+   echo Verbose ...
+   echo ''
+fi
+
+nerr=0
+
+nfiles=$(ls *$pattern*${ext} 2>/dev/null | wc -l)
+if [[ $nfiles == 0 ]]; then 
+   echo -e "\e[0;31;1m        No file *$pattern*${ext} in current directory\e[0m \n"
+   nerr=$((nerr+1))
 else
- echo Verbose ...
- for f in *$pattern*${ext} ; do 
-   echo -n $f " : " ;  ncdump -h $f | grep UNLIM 
- done
+   for f in `ls *$pattern*${ext}` ; do 
+      # check is netcdf
+      cnc=$(ncdump -h $f 2> /dev/null | grep UNLIM )
+      if [[ $? != 0 ]] ; then
+        printf "\e[0;31;1m                E R R O R : %-50s is not a valid netcdf\e[0m \n" $f
+        nerr=$((nerr+1))
+      else
+      # check is netcdf contains more than 0 time step
+        if [[ $cprint != '' ]] ; then
+           cprint=$(echo $cnc | tr -d '(' | awk '{ if ( $(NF -1) == 0 ) printf "%-50s : %s" , fich, $0 }' fich=$f)
+           echo -e "\e[0;31;1m        $cprint \e[0m"
+           nerr=$((nerr+1))
+        else
+           if [ $lverbose = 1 ]; then
+              printf "        %-50s : %s \n" $f "$cnc" 
+           fi
+        fi
+     fi
+   done
+fi
+
+# exit status
+if [[ $nerr > 0 ]]; then
+   exit 42
 fi

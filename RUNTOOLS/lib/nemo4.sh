@@ -26,7 +26,7 @@ mkdir -p  $P_S_DIR/ANNEX
 ## Generic name for some directories
 CN_DIAOBS=${CONFIG_CASE}-DIAOBS     # receive files from diaobs functionality, if used
 CN_DIRRST=${CONFIG_CASE}-RST        # receive restart files
-CN_DIRICB=${CONFIG_CASE}-ICB        # receive Iceberg Output files
+CN_DIRICB=${CONFIG_CASE}-XIOS       # receive Iceberg Output files
 
 ## -----------------------------------------------------
 echo '(1) get all the working tools on the TMPDIR directory'
@@ -53,7 +53,7 @@ copy waytmp $P_CTL_DIR/
 echo " [1.1]  copy script and get number ($$) usefull for run"
 echo " ======================================================"
 
-rcopy $P_UTL_DIR/bin/datfinyyyy ./
+rcopy $P_UTL_DIR/datfinyyyy ./
 rcopy $P_CTL_DIR/includefile.sh includefile.sh 
 
 ## copy the executable NEMO
@@ -139,7 +139,7 @@ echo "   *** NEWXML = " $NEWXML
 
 ## copy of the control files ( .db and and template namelist )
 rcopy $P_CTL_DIR/namelist.${CONFIG_CASE} namelist
-rcopy $P_CTL_DIR/$CONFIG_CASE.db ./
+rcopy $P_CTL_DIR/$DBFILE ./
 
 if [ $AGRIF = 1 ] ; then
     initagrif 
@@ -156,9 +156,9 @@ echo " [2.1]  ocean namelist"
 echo " ====================="
 
 ## exchange <wildcards>  with the correct info from db
-no=`tail -1 $CONFIG_CASE.db | awk '{print $1}' `
-nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
-nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
+no=`tail -1 $DBFILE | awk '{print $1}' `
+nit000=`tail -1 $DBFILE | awk '{print $2}' `
+nitend=`tail -1 $DBFILE | awk '{print $3}' `
 
 if [ $no != 1 ] ; then
     restart_flag=true
@@ -170,7 +170,7 @@ sed -e "s/<NN_NO>/$no/" \
     -e "s/<CONFCASE>/$CONFIG_CASE/" \
     -e "s/<NIT000>/$nit000/" \
     -e "s/<NITEND>/$nitend/" \
-    -e "s/<RESTART>/$restart_flag/" \
+    -e "s/<RESTART>/.${restart_flag}./" \
     -e "s@<CN_DIAOBS>@$DDIR/${CN_DIAOBS}.$no@"   \
     -e "s@<CN_DIRICB>@$DDIR/${CN_DIRICB}.$no@"   \
     -e "s@<CN_DIRRST>@$DDIR/${CN_DIRRST}@"   namelist > znamelist1
@@ -241,7 +241,7 @@ rdt=$(LookInNamelist rn_rdt)
 
 ## place holder for time manager (eventually)
 if [ $no != 1 ] ; then
-    ndastpdeb=`tail -2 $CONFIG_CASE.db | head -1 | awk '{print $4}' `
+    ndastpdeb=`tail -2 $DBFILE | head -1 | awk '{print $4}' `
 else
     ndastpdeb=$(LookInNamelist nn_date0)
 fi
@@ -319,8 +319,8 @@ BDY=0
 # Ice model
 ICE_INI=0 ; ICE_DMP=0
 if [ $ICE = 1 ] ; then   # SI3
-    tmp=$(LookInNamelist ln_iceini namelist_ice namini ) ; tmp=$(normalize $tmp)
-    if [ $tmp = T ] ; then ICE_INI=1 ; fi
+    tmp=$(LookInNamelist nn_iceini_file namelist_ice namini )
+    if [ $tmp != 0 ] ; then ICE_INI=1 ; fi
 
 #   No ice damping so far in SI3/NEMO4 ....
 #    tmp=$(LookInNamelist ln_limdmp namelist_ice) ; tmp=$(normalize $tmp)
@@ -386,6 +386,10 @@ ICB=0
 tmp=$(LookInNamelist ln_icebergs) ; tmp=$(normalize $tmp)
 if [ $tmp = T ] ; then
     ICB=1
+    if [ $ENSEMBLE = 1 ] ; then 
+        echo " management of ICB trajectory output not done with ensemble; stop"
+	exit 42
+    fi
     echo "   ***  Check/Create directory : ${CN_DIRICB}.$no"
     mkdir -p $DDIR/${CN_DIRICB}.$no 
 fi
@@ -393,9 +397,15 @@ echo "   ***  ICB  = $ICB"
 
 # Ice Shelves 
 ISF=0
-tmp=$(LookInNamelist ln_isf namelist namsbc) ; tmp=$(normalize $tmp)
+tmp=$(LookInNamelist ln_isf namelist namisf) ; tmp=$(normalize $tmp)
 if [ $tmp = T ] ; then ISF=1   ; fi
 echo "   ***  ISF  = $ISF"
+
+# Top tidal velocity
+TTV=0
+tmp=$(LookInNamelist ln_2d_ttv namelist namdrg_top_tipaccs) ; tmp=$(normalize $tmp)
+if [ $tmp = T ] ; then TTV=1   ; fi
+echo "   ***  TTV  = $TTV"
 
 # Poleward Transport diagnostics
 DIAPTR=0
@@ -655,6 +665,7 @@ fi
 
 ## Tidal mixing (Delavergne)
 if [ $ZDFIWM = 1 ] ; then
+    echo 'get iwm files ...'
     getzdfiwm
 fi
 
@@ -676,6 +687,11 @@ fi
 ## iceshelve fluxes and/or circulation
 if [ $ISF = 1 ] ; then
     getisf
+fi
+
+## top tidal velocity
+if [ $TTV = 1 ] ; then
+    getttv
 fi
 
 ## diaobs : for memory : needed files are already copied (when updating namelist)
@@ -716,10 +732,7 @@ fi
 
 ## Ice initial condition only if no = 1
 if [ $ICE_INI = 1 -a $no -eq 1 ] ; then
-    tmp=$(LookInNamelist ln_iceini_file namelist_ice namini ) ; tmp=$(normalize $tmp)
-    if [ $tmp = T ] ; then 
-       geticeini
-    fi
+    geticeini
 fi
 
 ## Ice damping file 
@@ -994,7 +1007,7 @@ else
 ##### I C B
 ###########
             if [ $ICB = 1 ] ; then  # need iceberg restart
-                ICB_RST_IN=$(LookInNamelist cn_iscbrst_in  )$mmm
+                ICB_RST_IN=$(LookInNamelist cn_icbrst_in  )$mmm
                 ICB_RST_OUT=$(LookInNamelist cn_icbrst_out )$mmm
 
 
@@ -1157,16 +1170,10 @@ case $STOP_FLAG in
        # I C B
        # *****
         if [ $ICB = 1 ] ; then
-            ICB_RST_IN=restart_icebergs
-            ICB_RST_OUT=icebergs_restart
+            ICB_RST_IN=$(LookInNamelist cn_icbrst_in namelist)
+            ICB_RST_OUT=$(LookInNamelist cn_icbrst_out namelist )
 
-#       ICB restart file are not named as other restart files ( with nitend in the name). Som renamerst does not work
-#       till some update in the icb code.  
-#        renamerst  $ICB_RST_IN $ICB_RST_OUT
-            for f in ${ICB_RST_OUT}* ; do 
-                g=$( echo $f | sed -e "s/$ICB_RST_OUT/$ICB_RST_IN/").$ext
-                mv $f $g
-            done
+          renamerst  $ICB_RST_IN $ICB_RST_OUT
         fi
 
     done      # loop on members
@@ -1178,8 +1185,8 @@ case $STOP_FLAG in
     mmm=$(getmember_extension $ENSEMBLE_START) # take the first member(if any) for reference
     output_ref=ocean.output$mmm  # used in update_db_file function to infer the ending date
     update_db_file 
-    cat $CONFIG_CASE.db
-    copy $CONFIG_CASE.db $P_CTL_DIR/ 
+    cat $DBFILE
+    copy $DBFILE $P_CTL_DIR/ 
 
     date
     echo ' [5.4] Rename namelists, ocean.output and other text files. Copy to P_S_DIR'
@@ -1203,7 +1210,7 @@ case $STOP_FLAG in
     date
     echo ' [5.6] Ready to re-submit the job NOW (to take place in the queue)'
     echo ' ================================================================='
-    TESTSUB=$( wc $CONFIG_CASE.db | awk '{print $1}' )
+    TESTSUB=$( wc $DBFILE | awk '{print $1}' )
     if [ $TESTSUB -le  $MAXSUB -o -f  FORCE_RESUB ] ; then
         submit  ${P_CTL_DIR}/${SUBMIT_SCRIPT}
         cd $TMPDIR
@@ -1238,13 +1245,12 @@ case $STOP_FLAG in
     if [ $STOP_FLAG = 0 ] ; then ext=$no     ; fi
     if [ $STOP_FLAG = 1 ] ; then ext=$$.'ABORT' ; fi
 
-
     if [ $XIOS = 1 ] ; then
         echo ' [6.1] Process the rebuild of nc file from XIOS files '
         echo ' ========================================================='
 
         cp $CN_DOMCFG  $DDIR/${CONFIG_CASE}-${DIROUText}.$ext/
-        cp iodef.xml domain_def.xml $DDIR/${CONFIG_CASE}-${DIROUText}.$ext/
+        cp iodef.xml $DDIR/${CONFIG_CASE}-${DIROUText}.$ext/
    
         if [ $DIAPTR = 1 ] ; then  # process diaptr files (one_file mode). Only rename
         date
@@ -1332,7 +1338,7 @@ case $STOP_FLAG in
                 mkbuild_merge zmergxios.$ext.sh  
                 submit ${P_CTL_DIR}/zmergxios.$ext.sh
             else  # MERGE on the fly 
-                echo "   ***  Recombine for XIOS using mergefile_mpp2 on the fly"
+                echo "   ***  Recombine for XIOS using mergefile_mpp4 on the fly"
                 if [ $ENSEMBLE = 1 ] ; then 
                     mergefiles_ens
                 else
@@ -1431,7 +1437,16 @@ eof
             echo "Ne pas effacer ce fichier.MERCI." > $P_CTL_DIR/float
             chmod a-wx $P_CTL_DIR/float
         fi
-    fi ;;
+    fi 
+
+    if [ $ICB = 1 ] ; then
+        echo ' *** ICB trajectories'
+        cd $DDIR/${CN_DIRICB}.$no  # go in ICB directory
+        echo "   ***  Recombine for ICB on the fly"
+        process_icb_trj
+        cd $TMPDIR  # back to TMPDIR	
+    fi
+    date ;;
 
     ( 2 )
     date

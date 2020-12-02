@@ -52,7 +52,7 @@ done
 
 if [ $lstep ] ; then
    stp=$stpdef
-elif [ ! -f *.db ] ; then 
+elif [ ! -f *.scal.db ] ; then 
    stp=$stpdef
   echo "  +++ Use default value for steps : " $stp
 else
@@ -63,5 +63,6 @@ fi
      echo -n $f " : "  ; dcmtk_rate -s $stp -b 1 -f $f
    done  ) > $PERF
 
+ cat $PERF
  cat $PERF | sort -t_ -k4n  | sed -e "s/\.o/\ \.o/g" -e "s/_/ /g" | awk '{print $5 " " $11}' | graph -TX -S 2 -m -1
 

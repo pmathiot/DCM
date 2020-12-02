@@ -42,20 +42,26 @@ xios_mvnc2s() {
        for d in $( ls -d *OUTPUT 2>/dev/null ) ; do
          if [ -d $d ] ; then 
             freq=${d%_*}
-            echo $freq
             mkdir -p $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/
             cd $d
-            nfil=$( ls -1 ${CONFIG}*-${CASE}_y????m??*.${freq}_*.nc 2>/dev/null | wc -l )
+            nfil=$( ls -1 ${CONFIG}*-${CASE}_y????*.${freq}_*.nc ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null | wc -l )
+            echo "$freq : $nfile to be moved"
             if [ $nfil != 0 ] ; then
-              for f in ${CONFIG}*-${CASE}_y????m??*.${freq}_*.nc ; do
+              for f in `ls ${CONFIG}*-${CASE}_y????*.${freq}_*.nc 2>/dev/null` ; do
                  tag=$( echo $f | awk -F_ '{print $2}')
                  year=${tag:1:4}
                  mkdir -p $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/$year/
                  mv $f  $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/$year/
+                 echo "    $f moved"
+              done
+              for f in `ls ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null` ; do
+                 mv $f  $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/.
+                 echo "    $f moved"
               done
             else
                echo no files to transmit in $d
             fi
+            echo ''
             cd ../
          fi
        done
@@ -83,13 +89,16 @@ xios_wrk_mvnc2s() {
                  echo $freq
                  mkdir -p $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/
                  cd $d
-                 nfil=$( ls -1 ${CONFIG}*-${CASE}_y????m??*.${freq}_*.nc 2>/dev/null | wc -l )
+                 nfil=$( ls -1 ${CONFIG}*-${CASE}_y????m??*.${freq}_*.nc ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null | wc -l )
                  if [ $nfil != 0 ] ; then
                     for f in ${CONFIG}*-${CASE}_y????m??*.${freq}_*.nc ; do
                       tag=$( echo $f | awk -F_ '{print $2}')
                       year=${tag:1:4}
                       mkdir -p $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/$year/
                       mv $f  $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/$year/
+                    done
+                    for f in `ls ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null` ; do
+                      mv $f  $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/.
                     done
                  else
                     echo no files to transmit in $d for member $member $CONFCASE $nfil
@@ -116,7 +125,7 @@ if [ $tmp  !=  0 ] ; then
 fi
 
 DDIR=${DDIR:-$CDIR}
-if [ $MACHINE = 'jean-zay' ] ; then DDIR=$WORK ; fi
+#if [ $MACHINE = 'jean-zay' ] ; then DDIR=$WORK ; fi
 
 # look for ensemble run ? (in this case nnn subdirectory (3digits) 
 

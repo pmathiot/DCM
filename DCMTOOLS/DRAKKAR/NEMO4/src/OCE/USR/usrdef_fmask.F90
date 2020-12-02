@@ -59,7 +59,7 @@ CONTAINS
       INTEGER  ::   isrow                    ! index for ORCA1 starting row
       !!----------------------------------------------------------------------
       !
-      IF( TRIM( cd_cfg ) == "orca" ) THEN      !==  ORCA Configurations  ==!
+      IF( TRIM( cd_cfg ) == "orca" .OR. TRIM( cd_cfg ) == "ORCA" ) THEN      !==  ORCA Configurations  ==!
          !
          SELECT CASE ( kcfg )
          !

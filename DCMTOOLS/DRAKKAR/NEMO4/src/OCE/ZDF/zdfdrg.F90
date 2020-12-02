@@ -257,6 +257,8 @@ CONTAINS
 902   IF( ios >  0 )   CALL ctl_nam( ios , 'namdrg in configuration namelist' )
       IF(lwm) WRITE ( numond, namdrg )
       !
+      IF( ln_drgice_imp .AND. nn_ice /= 2 )   ln_drgice_imp = .FALSE.
+      !
       IF(lwp) THEN
          WRITE(numout,*)
          WRITE(numout,*) 'zdf_drg_init : top and/or bottom drag setting'
@@ -280,9 +282,6 @@ CONTAINS
       !
       IF ( ln_drgice_imp.AND.(.NOT.ln_drgimp) ) & 
          &                CALL ctl_stop( 'zdf_drg_init: ln_drgice_imp=T requires ln_drgimp=T' )
-      !
-      IF ( ln_drgice_imp.AND.( nn_ice /=2 ) ) &
-         &  CALL ctl_stop( 'zdf_drg_init: ln_drgice_imp=T requires si3' )
       !
       !                     !==  BOTTOM drag setting  ==!   (applied at seafloor)
       !
@@ -341,7 +340,8 @@ CONTAINS
 ! tipaccs 2d top tidal velocity
       CHARACTER(len=255) :: cn_dirttv
       TYPE(FLD_N)        :: sn_ttv
-      NAMELIST/namdrg_top_tipaccs/ ln_2d_ttv, cn_dirttv, sn_ttv
+      REAL(wp)           :: rn_ttv_sf, rn_ttv_os
+      NAMELIST/namdrg_top_tipaccs/ ln_2d_ttv, rn_ttv_sf, rn_ttv_os, cn_dirttv, sn_ttv
 ! end tipaccs 2d top tidal velocity
 
 #if defined key_drakkar 
@@ -422,9 +422,11 @@ CONTAINS
          WRITE(numout,*) '      non-linear drag maximum                 rn_Cdmax = ', rn_Cdmax
 
 ! tipaccs 2d top tidal velocity
-         WRITE(numout,*) '      use 2d top tidal velocity               ln_2d_ttv= ', ln_2d_ttv
-         IF (ln_2d_ttv) THEN
+         IF (ll_top) WRITE(numout,*) '      use 2d top tidal velocity               ln_2d_ttv= ', ln_2d_ttv
+         IF (ln_2d_ttv .AND. ll_top) THEN
             WRITE(numout,*) '      2d top tital velocity read from file    sn_ttv   = ',TRIM(sn_ttv%clname)
+            WRITE(numout,*) '      scale factor applied to ttv             rn_ttv_sf= ', rn_ttv_sf
+            WRITE(numout,*) '      offset       applied to ttv             rn_ttv_os= ', rn_ttv_os
          ELSE
             WRITE(numout,*) '      background kinetic energy  (n-l case)   rn_ke0   = ', rn_ke0
          ENDIF
@@ -448,7 +450,10 @@ CONTAINS
          CALL iom_open ( TRIM(sn_ttv%clname), inum )
          CALL iom_get  ( inum, jpdom_data, TRIM(sn_ttv%clvar), pke0, 1 )
          CALL iom_close( inum)
+         ! 
+         ! Eq 9c Jourdain et al. (2019)
          ! input file is a velocity, NEMO need a square velocity
+         pke0 = pke0 * rn_ttv_sf + rn_ttv_os
          pke0 = pke0 * pke0
          !
       ENDIF

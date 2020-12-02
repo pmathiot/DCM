@@ -6,15 +6,13 @@
 
 usage() {
    echo
-   echo "USAGE: $(basename $0) [-h] [-c CORES-per-node] jpni jpnj jpnij nxios"
+   echo "USAGE: $(basename $0) [-h] [-c CORES-per-node] jpnij nxios"
    echo "  "
    echo "  PURPOSE:"
    echo "    Launch scalability experiment corresponding to domain decomposition given"
    echo "    in the arguments."
    echo "  "
    echo "  ARGUMENTS:"
-   echo "    jpni : number of subdomains in the I-direction"
-   echo "    jpnj : number of subdomains in the J-direction"
    echo "    jpnij : Total number of ocean only subdomains."
    echo "    nxios : Number of xios_server.exe to be launched."
    echo "  "
@@ -25,7 +23,7 @@ usage() {
    exit 0
         }
 
-ncpn=28
+ncpn=24
 
 if [ ! $PDIR ] ; then
    echo "ERROR : You must set up your environment for DCM before using the RUN_TOOLS."
@@ -49,10 +47,8 @@ if [ $# != 4 ] ; then
 fi
 
 set -x
-jpni=$1
-jpnj=$2
-jpnij=$3
-nxios=$4
+jpnij=$1
+nxios=$2
 
 ntasks=$(( jpnij + nxios ))
 nodes=$(( ntasks / ncpn ))
@@ -68,19 +64,16 @@ else
 fi
 
 # create includefile.sh from template :
-cat ./includefile.sh.tmp | sed -e "s/<JPNI>/$jpni/g"   -e "s/<JPNJ>/$jpnj/g"   \
-          -e "s/<JPNIJ>/$jpnij/g" -e "s/<NXIOS>/$nxios/g" -e "s/<NODES>/$nodes/g" \
-          -e "s/<NTASKS>/$ntasks/g" -e "s/<NCPN>/$ncpn/g" > includefile.sh_${jpni}_${jpnj}_${jpnij}
+cat ./includefile.scal.sh.tmp | sed -e "s/<JPNIJ>/$jpnij/g" -e "s/<NXIOS>/$nxios/g" -e "s/<NODES>/$nodes/g" \
+          -e "s/<NTASKS>/$ntasks/g" -e "s/<NCPN>/$ncpn/g" > includefile.scal.sh_${jpnij}
 
-. ./includefile.sh_${jpni}_${jpnj}_${jpnij}
+. ./includefile.sh_${jpnij}
 
 # Create namelist from template:
-cat ./namelist.${CONFIG_CASE}.tmp  | sed -e "s/<JPNI>/$jpni/g" -e "s/<JPNJ>/$jpnj/g" \
-          -e "s/<JPNIJ>/$jpnij/g" > namelist.${CONFIG_CASE}_${jpni}_${jpnj}_${jpnij}
+cat ./namelist.${CONFIG_CASE}.scal.tmp  | sed -e "s/<JPNIJ>/$jpnij/g" > namelist.scal.${CONFIG_CASE}_${jpnij}
 
 # Create submit script from template:
-cat ./${CONFIG_CASE}_${MACHINE}.sh.tmp  | sed -e "s/<JPNI>/$jpni/g" -e "s/<JPNJ>/$jpnj/g" \
-          -e "s/<JPNIJ>/$jpnij/g" -e "s/<NXIOS>/$nxios/g" -e "s/<NCPN>/$ncpn/g" -e "s/<CONSTRAINT>/$constraint/g" \
+cat ./${CONFIG_CASE}_${MACHINE}.scal.sh.tmp  | sed -e "s/<JPNIJ>/$jpnij/g" -e "s/<NXIOS>/$nxios/g" -e "s/<NCPN>/$ncpn/g" -e "s/<CONSTRAINT>/$constraint/g" \
           -e "s/<NODES>/$nodes/g" -e "s/<NTASKS>/$ntasks/g" > ${SUBMIT_SCRIPT}
 
 

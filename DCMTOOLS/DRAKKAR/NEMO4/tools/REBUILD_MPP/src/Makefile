@@ -3,18 +3,18 @@ NCDF = -I$(NETCDF_INCDIR) -I$(NETCDFF_INCDIR) $(NETCDF_LDFLAGS) $(NETCDFF_LDFLAG
 #FFLAGS= -O2 $(NCDF) $(NC4)  -CB -fpe0 -ftrapuv -traceback -g  -fp-model precise
 #FFLAGS= -O2 $(NCDF) $(NC4)  -CB  -traceback -g
 FFLAGS= -O2  $(NCDF) $(NC4) -fp-model precise
-F90=ifort
+F90=$(DCM_FC90)
 MPF90=mpif90
 
 BINDIR = ../
 
 VPATH = $(BINDIR)
 
-
-
-
 mergefile4.exe: mergefile4.f90 modncfile.o modutil.o
 	$(F90) mergefile4.f90 -o $(BINDIR)/mergefile4.exe modncfile.o modutil.o $(FFLAGS)
+
+mergefile_mpp4.exe: mergefile_mpp4.f90 modncfile.o modutil.o
+	$(F90) mergefile_mpp4.f90 -o $(BINDIR)/mergefile_mpp4.exe modncfile.o modutil.o $(FFLAGS)
 
 ## Modules
 
@@ -27,5 +27,3 @@ modutil.o: modutil.f90  modncfile.o
 clean:
 	rm -f  $(BINDIR)/*.exe *.mod *.o
 
-
-	

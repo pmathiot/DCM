@@ -68,11 +68,19 @@ CONTAINS
       TYPE(iceberg)                ::   localberg ! NOT a pointer but an actual local variable
       TYPE(point)                  ::   localpt   ! NOT a pointer but an actual local variable
       !!----------------------------------------------------------------------
-      !
+
       ! Find a restart file.
+#if defined key_drakkar
       cl_path = TRIM(cn_icbrst_indir)
+#else
+      cl_path = TRIM(cn_ocerst_indir)
+#endif
       IF( cl_path(LEN_TRIM(cl_path):) /= '/' ) cl_path = TRIM(cl_path) // '/'
+#if defined key_drakkar
       cl_filename = TRIM(cn_icbrst_in)
+#else
+      cl_filename = TRIM(cn_ocerst_in)//'_icebergs'
+#endif
       CALL iom_open( TRIM(cl_path)//cl_filename, ncid )
 
       imax_icb = 0
@@ -191,7 +199,8 @@ CONTAINS
       INTEGER ::   ix_dim, iy_dim, ik_dim, in_dim
       CHARACTER(len=256)     :: cl_path
       CHARACTER(len=256)     :: cl_filename
-      CHARACTER(len=256)     :: cl_kt
+      CHARACTER(len=8  )     :: cl_kt
+      CHARACTER(LEN=12 )     :: clfmt            ! writing format
       TYPE(iceberg), POINTER :: this
       TYPE(point)  , POINTER :: pt
       !!----------------------------------------------------------------------
@@ -201,30 +210,28 @@ CONTAINS
       ! This is a performance step enabling the file to be opened and contents
       ! defined in advance of the write. This is not possible with icebergs
       ! since the number of bergs to be written could change between timesteps
-
       IF( kt == nitrst ) THEN
          ! Only operate on the restart timestep itself.
          ! Assume we write iceberg restarts to same directory as ocean restarts.
-         !
-         ! directory name
+#if defined key_drakkar
          cl_path = TRIM(cn_icbrst_outdir)
+#else
+         cl_path = TRIM(cn_ocerst_outdir)
+#endif
          IF( cl_path(LEN_TRIM(cl_path):) /= '/' ) cl_path = TRIM(cl_path) // '/'
-         !
-         ! file name
          WRITE(cl_kt, '(i8.8)') kt
 #if defined key_drakkar
-         !{ DRAKKAR : use simpler name for restart files ( defined in domain.F90 )
-         cl_filename = TRIM(cn_ocerst_out)
-         !}
+         cl_filename = TRIM(cn_icbrst_out)
 #else
-         cl_filename = TRIM(cexper)//"_"//TRIM(ADJUSTL(cl_kt))//"_"//TRIM(cn_icbrst_out)
+         cl_filename = TRIM(cexper)//"_icebergs_"//cl_kt//"_restart"
 #endif
          IF( lk_mpp ) THEN
-            WRITE(cl_filename,'(A,"_",I4.4,".nc")') TRIM(cl_filename), narea-1
+            idg = MAX( INT(LOG10(REAL(MAX(1,jpnij-1),wp))) + 1, 4 )          ! how many digits to we need to write? min=4, max=9
+            WRITE(clfmt, "('(a,a,i', i1, '.', i1, ',a)')") idg, idg          ! '(a,a,ix.x,a)'
+            WRITE(cl_filename,  clfmt) TRIM(cl_filename), '_', narea-1, '.nc'
          ELSE
-            WRITE(cl_filename,'(A,".nc")') TRIM(cl_filename)
+            WRITE(cl_filename,'(a,a)') TRIM(cl_filename),               '.nc'
          ENDIF
-
          IF ( lwp .AND. nn_verbose_level >= 0) WRITE(numout,'(2a)') 'icebergs, write_restart: creating ',  &
            &                                                         TRIM(cl_path)//TRIM(cl_filename)
    

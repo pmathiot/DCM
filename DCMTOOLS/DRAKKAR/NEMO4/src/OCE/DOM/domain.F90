@@ -139,13 +139,6 @@ CONTAINS
       IF( ln_closea )   CALL dom_clo   ! ln_closea=T : closed seas included in the simulation
                                        ! Read in masks to define closed seas and lakes 
       !
-      DO jj = 1, jpj                   ! depth of the iceshelves
-         DO ji = 1, jpi
-            ik = mikt(ji,jj)
-            risfdep(ji,jj) = gdepw_0(ji,jj,ik)
-         END DO
-      END DO
-      !
       ht_0(:,:) = 0._wp  ! Reference ocean thickness
       hu_0(:,:) = 0._wp
       hv_0(:,:) = 0._wp
@@ -285,16 +278,19 @@ CONTAINS
       USE ioipsl
       !!
       INTEGER  ::   ios   ! Local integer
+
+#if defined key_drakkar
+      CHARACTER(lc)  :: cl_no
+#endif
       !
       NAMELIST/namrun/ cn_ocerst_indir, cn_ocerst_outdir, nn_stocklist, ln_rst_list,                 &
          &             nn_no   , cn_exp   , cn_ocerst_in, cn_ocerst_out, ln_rstart , nn_rstctl ,     &
          &             nn_it000, nn_itend , nn_date0    , nn_time0     , nn_leapy  , nn_istate ,     &
          &             nn_stock, nn_write , ln_mskland  , ln_clobber   , nn_chunksz, nn_euler  ,     &
-         &             ln_cfmeta,ln_xios_read, nn_wxios
-#if defined key_drakkar
-      CHARACTER(lc)  :: cl_no
-#endif
+         &             ln_cfmeta, ln_xios_read, nn_wxios
+
       NAMELIST/namdom/ ln_linssh, rn_rdt, rn_atfp, ln_crs, ln_meshmask
+
 #if defined key_netcdf4
       NAMELIST/namnc4/ nn_nchunks_i, nn_nchunks_j, nn_nchunks_k, ln_nc4zip
 #endif
@@ -636,7 +632,7 @@ CONTAINS
       
       !
       !                             !==  ORCA family specificities  ==!
-      IF( cn_cfg == "ORCA" ) THEN
+      IF( TRIM(cn_cfg) == "orca" .OR. TRIM(cn_cfg) == "ORCA" ) THEN
          CALL iom_rstput( 0, 0, inum, 'ORCA'      , 1._wp            , ktype = jp_i4 )
          CALL iom_rstput( 0, 0, inum, 'ORCA_index', REAL( nn_cfg, wp), ktype = jp_i4 )         
       ENDIF

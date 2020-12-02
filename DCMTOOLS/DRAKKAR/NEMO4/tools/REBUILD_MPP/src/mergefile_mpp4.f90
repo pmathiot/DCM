@@ -227,7 +227,7 @@ PROGRAM mergefile_mpp4
      ENDDO
      PRINT *, '### 0 ###  done '
   ELSE
-     DO WHILE ( ncurrent <   nfile  )
+     DO WHILE ( ncurrent <= nfile  )
         ! Current mpirank ask for a number to rank #0
         CALL MPI_BSEND (iask_number, 1, MPI_INTEGER ,0 , 1           , MPI_COMM_WORLD ,                    mpierr)
         CALL MPI_RECV  (ncurrent,    1, MPI_INTEGER ,0 , MPI_ANY_TAG , MPI_COMM_WORLD , MPI_STATUS_IGNORE, mpierr)
