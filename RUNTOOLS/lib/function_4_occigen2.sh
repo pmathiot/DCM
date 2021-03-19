@@ -109,9 +109,9 @@ mkordre() { cd $SDIR/${CONFIG}/${CONFIG_CASE}-S/ ; ~/bin/mkordre  ; }
 
 submit() { cd ${P_CTL_DIR} 
            if [ -f ~/.bad_node ] ; then 
-           sbatch -x $(cat ~/.bad_node) $1 > $TMPDIR/logsubmit 
+              sbatch -x $(cat ~/.bad_node) $1 > $TMPDIR/logsubmit 
            else
-           sbatch $1 > $TMPDIR/logsubmit 
+              sbatch $1 > $TMPDIR/logsubmit 
            fi
            cd $TMPDIR 
          }
