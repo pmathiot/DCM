@@ -1,0 +1,72 @@
+#!/bin/bash
+if [[ $# -lt 2 ]] ; then echo 'usage: dcmtk_chkreb CONFIG CASE [SEG (opt)]'; exit 42; fi
+
+# check ncdump
+command -v ncdump > /dev/null
+if [[ $? != 0 ]]; then echo -e "\e[0;31;1m ERROR ncdump does not work; load netcdf module;\e[0m"; exit 42; fi
+
+CONFIG=$1
+CASE=$2
+
+CONFCASE=${CONFIG}-${CASE}
+
+check_output_dir ()  {
+    inode=$(dcmtk_inode $odir | awk '{print $1}' )
+    printf "           - output %-11s, inodes : $inode \n" $odir
+    cd $odir
+    dcmtk_chkunlim
+    if [[ $? != 0 ]]; then 
+       nerrreb=$((nerrreb+1))
+    fi     
+    cd ../
+            }
+
+#echo ' define segments to check'
+if [ $# = 3 ] ; then
+  seg=$3
+  if [ ! -d  ${CONFCASE}-XIOS.$seg ]; then 
+     # check OUTPUT dir existance
+     echo ''
+     printf "   * segment %-40s : \n" ${CONFCASE}-XIOS.$seg
+     echo ''
+     echo -e "\e[0;31;1m           - E R R O R : Segment ${CONFCASE}-XIOS.$seg does not exist; exit 42 \e[0m"
+     echo ''
+     exit 42
+  fi
+else
+  seg=*
+fi
+
+#echo ' check all segments'
+nerrreb=0
+for XIOSdir in `ls -d ${CONFCASE}-XIOS.$seg`; do
+   cd $XIOSdir
+   NO=${XIOSdir#*.}
+   echo ''
+   printf "   * segment %-40s : \n" $XIOSdir
+   echo ''
+   noutdir=$(ls -d *_OUTPUT 2>/dev/null | wc -l)
+   if [[ $noutdir == 0 ]]; then
+      echo -e "\e[0;31;1m           - E R R O R : No output directory *_OUTPUT in $XIOSdir \e[0m"
+      echo ''
+   else
+      for odir in `ls -d *_OUTPUT`; do
+         check_output_dir $dir
+      done
+      if [[ $nerrreb == 0 ]]; then 
+         echo ''
+         echo "    All seems OK, double check the total number of file and then run:"
+         echo "          dcmtk_mvnc2s  $CONFIG $CASE $NO"
+         echo ''
+      fi
+   fi
+   cd ../
+done
+
+# manage errors
+if [[ $nerrreb != 0 ]]; then
+   echo ''
+   echo -e "\e[0;31;1m E R R O R : Rebuild process of one of OUTPUT directory went wrong; exit 42 \e[0m"
+   echo ''
+   exit 42
+fi
