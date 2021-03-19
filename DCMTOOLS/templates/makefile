@@ -30,13 +30,13 @@ REFONLY = 'no'
 # MACHINE : name of architecture for compilation. Assume that a arch_${MACHINE}.fcm exists in ARCH 
 # to know available arch_xxx.fcm, use dcm_lsarch. You can edit/add your own arch_xxx.fcm in
 # CONFIG-CASE/ARCH/ directory
-MACHINE = GCC_MEOM
+MACHINE = occigen
 
 # COMPUTER is the name of the machine on which the experiement will be run. Used for make ctl only
-COMPUTER = jean-zay  # one of jean-zay irene occigen ...
+COMPUTER = occigen   # one of jean-zay irene occigen ...
 
 # NCOMPIL_PROC : number of procs to use for the compilation of the code.
-NCOMPIL_PROC = 1
+NCOMPIL_PROC = 8
 
 # set to 'use' the NEMO component required for this config, to anything else  if notused
 OCE = 'use'
@@ -102,7 +102,7 @@ compile: check_module copyfile copynamelist
 	@echo '... compile nemo  with fcm ...'
 	@cp CPP.keys $(PDIR)/RUN_$(CONFIG)/$(CONFIG)-$(CASE)/EXE/
 	@dcm_cpp2fcm > $(COMPIL_DIR)/cfgs/$(CONFIG)-$(CASE)/cpp_$(CONFIG)-$(CASE).fcm
-	@cd $(COMPIL_DIR) ; ./makenemo -r $(CONFIG)-$(CASE)  -j $(NCOMPIL_PROC)
+	@cd $(COMPIL_DIR) ; ./makenemo -r $(CONFIG)-$(CASE) -m $(MACHINE)  -j $(NCOMPIL_PROC)
 	@ln -sf $(COMPIL_DIR)/cfgs/$(CONFIG)-$(CASE)/BLD/bin/nemo.exe $(PDIR)/RUN_$(CONFIG)/$(CONFIG)-$(CASE)/EXE/nemo4.exe
 
 check_module:
@@ -276,7 +276,7 @@ cleaninst: check_module
 	@-\rm -rf $(CDIR)/W$(CONFIG)-$(CASE)/*
 
 clean: check_module
-	@cd $(COMPIL_DIR)/CONFIG/ ; ./makenemo -r $(CONFIG)-$(CASE) clean 
+	@cd $(COMPIL_DIR)/ ; ./makenemo -r $(CONFIG)-$(CASE) clean 
 
 # restore target is used to restore a SINGLE file from the 3levels references
 # must be invoked like : make restore RESTORE=OPA_SRC/SBC/ocesbc.F90  (for instance, with the full path relative to NEMO)
