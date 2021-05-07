@@ -162,7 +162,8 @@ SetYears()          {
      else
        yearm1=$( tail -2 $DBFILE | head -1 | awk '{ print int($NF/10000) }' )
        yearm1=$(( yearm1 - 1 ))
-       yearp1=$(( yearm1 + $znyear + 1 ))
+       #yearp1=$(( yearm1 + $znyear + 1 ))
+       yearp1=$(( year + $znyear + 1 ))    #PM
      fi
 
        yearm1=$( printf "%04d" $yearm1 )
@@ -1445,7 +1446,7 @@ mergefiles_ens()  {
 # ---
 
 # Prepare a script for merging icb traj files (using mergeproc- off-line).
-  process_icb_trj() {
+process_icb_trj() {
      if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
      echo "rebuild trajectory_icebergs_${no} ..."
      python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc

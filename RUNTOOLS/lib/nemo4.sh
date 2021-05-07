@@ -547,7 +547,6 @@ if [ $DIAOBS = 1 ] ; then
 
 fi
 
-
 if [ $XIOS = 1 ] ; then
     echo ' [2.6]  XML files for XIOS'
     echo " ========================="
@@ -717,7 +716,6 @@ fi
 if [ $DYNCOEF3D = 1 ] ; then
     rapatrie $AHM3D  $P_I_DIR $F_DTA_DIR $NEMO_AHM3D
 fi
-
 
 
 echo ' [3.2] : Initial conditions, damping files'
@@ -1056,8 +1054,10 @@ date
 if [ $XIOS = 1 -a $NB_NPROC_IOS != 0 ] ; then
    NB_NCORE_DP=${NB_NCORE_DP:=0}
    if [ $NB_NCORE_DP != 0 ] ; then
+      echo "start tuncode"
       runcode_mpmd_dp  -dp $NB_NCORE_DP $NB_NPROC ./nemo4.exe $NB_NPROC_IOS ./xios_server.exe
    else
+      echo "start tuncode"
       runcode_mpmd  $NB_NPROC ./nemo4.exe $NB_NPROC_IOS ./xios_server.exe
    fi
 else
@@ -1441,7 +1441,7 @@ eof
 
     if [ $ICB = 1 ] ; then
         echo ' *** ICB trajectories'
-        cd $DDIR/${CN_DIRICB}.$no  # go in ICB directory
+        cd $DDIR/${CN_DIRICB}.$ext  # go in ICB directory
         echo "   ***  Recombine for ICB on the fly"
         process_icb_trj
         cd $TMPDIR  # back to TMPDIR	

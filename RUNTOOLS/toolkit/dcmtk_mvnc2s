@@ -59,12 +59,13 @@ xios_mvnc2s() {
                  #printf "   * file %-50s moved \n" $f
               done
             else
-               echo no files to transmit in $d
+               printf "     no files to transmit in $d"
             fi
             echo ''
             cd ../
          fi
        done
+       printf "\n"
        cd $here  # back to root dir where mvnc2s was launched
      done
               }
@@ -110,8 +111,7 @@ xios_wrk_mvnc2s() {
      cd ../
                   }
 #########  END FUNCTIONS ##########
-
-if [ $# < 3 ] ; then usage ; fi
+if [[ $# -lt 3 ]] ; then usage ; fi
 
 CONFCASE=$1-$2
 NOlst=${@:3}

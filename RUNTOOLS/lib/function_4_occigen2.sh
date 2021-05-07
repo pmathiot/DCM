@@ -52,10 +52,12 @@ rapatrie() {
 core_rapatrie() {
      echo ${1:-none} | grep -iv none && \
     { if [ -f $4 ] ; then      # file already there
-        echo $4 found
+        echo "$4 found"
       elif [ -f $2/$1 ] ; then #copy from local file system
+        echo "$4 not found, copy from local file system ($2/$1)"
         cp $2/$1 $4
       else                     # copy from remote file system
+        echo "$4 not found, copy from remote file system ($2/$1)"
         rcopy $3/$1 $4  ||  { echo $1 not found anywhere &&  exit ; }
       fi  ; }
            }
@@ -109,9 +111,9 @@ mkordre() { cd $SDIR/${CONFIG}/${CONFIG_CASE}-S/ ; ~/bin/mkordre  ; }
 
 submit() { cd ${P_CTL_DIR} 
            if [ -f ~/.bad_node ] ; then 
-              sbatch -x $(cat ~/.bad_node) $1 > $TMPDIR/logsubmit 
+              sbatch -x $(cat ~/.bad_node) $1
            else
-              sbatch $1 > $TMPDIR/logsubmit 
+              sbatch $1
            fi
            cd $TMPDIR 
          }
