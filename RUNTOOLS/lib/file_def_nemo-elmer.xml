@@ -1,0 +1,22 @@
+    <!-- 
+============================================================================================================
+=                                           output files definition                                        =
+=                                            Define your own files                                         =
+=                                         put the variables you want...                                    =
+============================================================================================================
+    -->
+
+    <file_definition type="single_file" name="nemo_isf_meltrate" sync_freq="5d" min_digits="4">
+
+      <file_group id="1y"  output_freq="1y"  split_freq="1y" output_level="10" enabled=".TRUE." > <!-- real yearly files -->
+<!-- ice shelf melt -->
+        <file id="file777" name_suffix="_flxT" description="ocean T grid variables" >
+           <field field_ref="fwfisf_cav"      name="sowflisf_cav" />
+<!-- general comments --> 
+           <variable name="start_date"       type="int"><NDATE0>    </variable>
+           <variable name="output_frequency" type="string">1y      </variable>
+           <variable name="CONFIG"           type="string"><CONFIG> </variable>
+           <variable name="CASE"             type="string"><CASE>   </variable>
+        </file>
+      </file_group>
+    </file_definition>
