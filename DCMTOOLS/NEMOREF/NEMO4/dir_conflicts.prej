@@ -1,0 +1,16 @@
+Trying to change property 'svn:externals'
+but the local property value conflicts with the incoming change.
+^/utils/build/arch@12130      arch
+^/utils/build/makenemo@12191  makenemo
+^/utils/build/mk@11662        mk
+^/utils/tools_r4.0-HEAD@12672 tools
+^/vendors/AGRIF/dev@10586     ext/AGRIF
+^/vendors/FCM@10134           ext/FCM
+^/vendors/IOIPSL@9655         ext/IOIPSL
+<<<<<<< (local property value)
+
+# SETTE mapping (inactive)
+#^/utils/CI/sette@12135        sette
+=======
+^/utils/CI/sette@12135        sette
+>>>>>>> (incoming property value)
