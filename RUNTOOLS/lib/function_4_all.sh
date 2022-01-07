@@ -309,7 +309,8 @@ getforcing()        {
         tmp=$(LookInNamelist nn_sstr namelist )       # use SST damping ?
         if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sst " ; fi
         tmp=$(LookInNamelist nn_sssr namelist )       # use SSS damping ?
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sss " ; fi
+        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sss  " ; fi
+        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_empc " ; fi
         blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                           getweight $blk $P_WEI_DIR $F_WEI_DIR
         filter=''
@@ -912,7 +913,8 @@ cd -
 #   The submit script, then launch the execution in parallel of the secondary scripts (as many cores as members).
 mksavrst() {
 
-mk_batch_hdr --name ${1%%.*} --par --wallclock 0:20:00 --cores $ENSEMBLE_SIZE --cluster hpt --account $ACCOUNT --adapp --queue $QUEUE > $1
+#mk_batch_hdr --name ${1%%.*} --par --wallclock 0:20:00 --cores $ENSEMBLE_SIZE --cluster hpt --account $ACCOUNT --adapp --queue $QUEUE > $1
+mk_batch_hdr --name ${1%.*} --par --wallclock 0:20:00 --cores $ENSEMBLE_SIZE --cluster hpt --account $ACCOUNT --adapp --queue $QUEUE > $1
 
 cat << eof >> $1    # Submit script name given as argument
  set -x
@@ -953,7 +955,7 @@ cat << eof >> $1    # Submit script name given as argument
    mmm=\$mmm
    zrstdir=\$zrstdir
    cd $DDIR
-   tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm
+   tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm || exit 42
 eof1
    cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
@@ -963,9 +965,9 @@ eof1
   
   pwd
   if [ ! \$mmm ] ; then
-     ./$1\${mmm}.sh                                 # not an ensemble run : serial process
+     ./$1\${mmm}.sh            || exit 42            # not an ensemble run : serial process
   else
-     runcode_mpmd  \$mpmd_arg                        # launch the scripts in parallele (mpmd mode)
+     runcode_mpmd  \$mpmd_arg  || exit 42            # launch the scripts in parallele (mpmd mode)
   fi
 eof
 
@@ -1345,7 +1347,7 @@ eof
 # Prepare a script for merging files (using mergeproc- off-line).
 # this script is valid for both ensemble and non ensemble run
   mkbuild_merge() {
-  mk_batch_hdr --name ${1%%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
+  mk_batch_hdr --name ${1%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
              --account $ACCOUNT --cluster hpt  --adapp --queue $QUEUE \
              --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --option '--exclusive' > $1
        echo "  *** building merging script "
@@ -1373,7 +1375,7 @@ eof
                  g=\${CONFCASE}_\${date}.\${freq}_icescalar.nc
                  OUTDIR=../\${freq}_OUTPUT
                  mkdir -p \$OUTDIR
-                 cp \$f \$OUTDIR/\$g
+                 cp \$f \$OUTDIR/\$g || exit 42
 
               done
             cd  \$zXIOS
@@ -1382,7 +1384,7 @@ eof
          fi
          ln -sf $MERGE_EXEC ./
          lst0000=\`ls ${CONFIG_CASE}*0000.nc\`
-             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $CN_DOMCFG -r
+             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $CN_DOMCFG -r || exit 42
 eof
   copy $1 $P_CTL_DIR
             }

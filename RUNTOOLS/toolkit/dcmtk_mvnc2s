@@ -45,7 +45,7 @@ xios_mvnc2s() {
             mkdir -p $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/
             cd $d
             nfil=$( ls -1 ${CONFIG}*-${CASE}_y????*.${freq}_*.nc ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null | wc -l )
-            printf "$freq : %5d to be moved" $nfil
+            printf "%4s : %5d to be moved" $freq $nfil
             if [ $nfil != 0 ] ; then
               for f in `ls ${CONFIG}*-${CASE}_y????*.${freq}_*.nc 2>/dev/null` ; do
                  tag=$( echo $f | awk -F_ '{print $2}')

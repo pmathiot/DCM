@@ -11,14 +11,13 @@ CASE=$2
 CONFCASE=${CONFIG}-${CASE}
 
 check_output_dir ()  {
+    nerr=0
     inode=$(dcmtk_inode $odir | awk '{print $1}' )
     printf "           - output %-11s, inodes : $inode \n" $odir
     cd $odir
-    dcmtk_chkunlim
-    if [[ $? != 0 ]]; then 
-       nerrreb=$((nerrreb+1))
-    fi     
+    dcmtk_chkunlim || nerr=1
     cd ../
+    return $nerr
             }
 
 #echo ' define segments to check'
@@ -40,8 +39,9 @@ fi
 #echo ' check all segments'
 nerrreb=0
 for XIOSdir in `ls -d ${CONFCASE}-XIOS.$seg`; do
+   nerrseq=0
    cd $XIOSdir
-   NO=${XIOSdir#*.}
+   NO=${XIOSdir##*.}
    echo ''
    printf "   * segment %-40s : \n" $XIOSdir
    echo ''
@@ -51,16 +51,17 @@ for XIOSdir in `ls -d ${CONFCASE}-XIOS.$seg`; do
       echo ''
    else
       for odir in `ls -d *_OUTPUT`; do
-         check_output_dir $dir
+         check_output_dir $dir || nerrseq=$((nerrseq+1))
       done
-      if [[ $nerrreb == 0 ]]; then 
+      if [[ $nerrseq == 0 ]]; then 
          echo ''
-         echo "    All seems OK, double check the total number of file and then run:"
-         echo "          dcmtk_mvnc2s  $CONFIG $CASE $NO"
+         echo "              All seems OK, double check the total number of files and then run:"
+         echo "              dcmtk_mvnc2s  $CONFIG $CASE $NO"
          echo ''
       fi
    fi
    cd ../
+   nerrreb=$((nerrreb+nerrseq))
 done
 
 # manage errors

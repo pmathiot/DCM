@@ -28,12 +28,14 @@ if [ ! -d $SDIR/$CONFIG/${CONFIG}-${CASE}-S/$FREQ ]; then
 fi
 
 for YEAR in `ls -d $(eval echo {$YEARB..$YEARE})`; do 
+   nerr=0
    echo "tar year: $YEAR ..."
    echo ''
    if [[ ! -f $SDIR/$CONFIG/${CONFIG}-${CASE}-S/$FREQ/${FREQ}_${YEAR}.tar ]]; then
       tar -cvf $SDIR/$CONFIG/${CONFIG}-${CASE}-S/$FREQ/${FREQ}_${YEAR}.tar $YEAR
       if [[ $? != 0 ]]; then 
          echo "E R R O R during tar of ${FREQ}_${YEAR}.tar"
+         nerr=$((nerr+1))
       else
          echo "S U C C E E D of ${FREQ}_${YEAR}.tar"
       fi
@@ -43,4 +45,10 @@ for YEAR in `ls -d $(eval echo {$YEARB..$YEARE})`; do
    fi
    echo ''
    echo ''
+
+   if [[ $nerr == 0 ]]; then 
+      touch $PDIR/RUN_${CONFIG}/${CONFIG}-${CASE}/tar2s_${CONFIG}-${CASE}_${YEAR}.${FREQ}_OK
+   else
+      touch $PDIR/RUN_${CONFIG}/${CONFIG}-${CASE}/tar2s_${CONFIG}-${CASE}_${YEAR}.${FREQ}_ERR
+   fi
 done
