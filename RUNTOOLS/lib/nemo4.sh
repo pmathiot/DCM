@@ -624,7 +624,8 @@ eof
     # set <OUTDIR> in iodef.xml
     ndate0=$(LookInNamelist nn_date0)
    for  xml_fil in *.xml ; do
-    cat $xml_fil | sed -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS.$no@"  \
+    echo $xml_fil
+    time cat $xml_fil | sed -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS.$no@"  \
         -e "s@<MOORDIR>@$DDIR/${CONFIG_CASE}-MOORINGS.$no@" \
         -e "s/<CONFIG>/$CONFIG/" -e "s/<CASE>/$CASE/" \
         -e "s/<NDATE0>/$ndate0/" > ztmp
@@ -1051,6 +1052,10 @@ touch donecopy
 echo '(4) Run the code'
 echo '----------------'
 date
+if [ $MACHINE == 'irene' ] ; then
+   #runcode_mpmd_irene $((NB_NPROC+NB_NPROC_IOS))
+   runcode_mpmd_irene $NB_NPROC ./nemo4.exe $NB_NPROC_IOS ./xios_server.exe
+else
 if [ $XIOS = 1 -a $NB_NPROC_IOS != 0 ] ; then
    NB_NCORE_DP=${NB_NCORE_DP:=0}
    if [ $NB_NCORE_DP != 0 ] ; then
@@ -1062,6 +1067,7 @@ if [ $XIOS = 1 -a $NB_NPROC_IOS != 0 ] ; then
    fi
 else
     runcode  $NB_NPROC ./nemo4.exe
+fi
 fi
 date
 #--------------------------------------------------------
@@ -1441,9 +1447,15 @@ eof
 
     if [ $ICB = 1 ] ; then
         echo ' *** ICB trajectories'
-        cd $DDIR/${CN_DIRICB}.$ext  # go in ICB directory
-        echo "   ***  Recombine for ICB on the fly"
-        process_icb_trj
+        if [ $MERGE_ICB = 0 ] ; then
+           echo "   ***  Recombine for ICB in a batch"
+           mkbuild_merge_icb zmergicb.$ext.sh
+           submit ${P_CTL_DIR}/zmergicb.$ext.sh
+        else
+           cd $DDIR/${CN_DIRICB}.$ext  # go in ICB directory
+           echo "   ***  Recombine for ICB on the fly"
+           process_icb_trj
+        fi
         cd $TMPDIR  # back to TMPDIR	
     fi
     date ;;

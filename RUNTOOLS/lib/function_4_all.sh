@@ -1349,7 +1349,7 @@ eof
   mkbuild_merge() {
   mk_batch_hdr --name ${1%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
              --account $ACCOUNT --cluster hpt  --adapp --queue $QUEUE \
-             --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --option '--exclusive' > $1
+             --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --exclusive > $1
        echo "  *** building merging script "
        cat  << eof >> $1
         set -x 
@@ -1384,7 +1384,7 @@ eof
          fi
          ln -sf $MERGE_EXEC ./
          lst0000=\`ls ${CONFIG_CASE}*0000.nc\`
-             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $CN_DOMCFG -r || exit 42
+             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $TMPDIR/$CN_DOMCFG -r || exit 42
 eof
   copy $1 $P_CTL_DIR
             }
@@ -1458,6 +1458,37 @@ process_icb_trj() {
         echo "rebuild trajectory_icebergs_${no} FAILED"
      fi
      }
+
+mkbuild_merge_icb() {
+mk_batch_hdr --name ${1%.*} --cores 1 --wallclock $WALL_CLK_MER_ICB \
+             --account $ACCOUNT --queue $QUEUE \
+             --constraint $CONSTRAI_MER_ICB --memory $MEM_MER_ICB > $1
+       echo "  *** building icb script "
+       cat  << eof >> $1
+        set -x 
+        ulimit -s unlimited
+      . ~/.bashrc
+        conda activate nemo
+      . $RUNTOOLS/lib/function_4.sh
+      . $RUNTOOLS/lib/function_4_all.sh
+        DDIR=${DDIR:-$CDIR}
+        zICB=$DDIR/${CN_DIRICB}.$ext
+        cd \$zICB
+
+        if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
+        echo "rebuild trajectory_icebergs_${no} ..."
+        ccc_mprun python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+        if [ $? = 0 ] ; then
+           echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
+           exit 0
+        else
+           echo "rebuild trajectory_icebergs_${no} FAILED"
+           exit 42
+        fi
+eof
+  copy $1 $P_CTL_DIR
+            }
+
 
 # mk_post_process : function that build a script to launch zoomed area post processing in parallel
 mk_post_process()  {
@@ -1722,6 +1753,7 @@ mk_batch_hdr_core () {
      ("--queue"     ) shift ; queue=$1       ; shift ;;
      ("--adapp"     ) shift ; adapp=1            ;;
      ("--constraint") shift ; constraint=$1  ; shift ;;
+     ("--exclusive" ) shift ; lexclu=1           ;;
      ("--help"      ) shift ;
          echo USAGE : mk_batch_hdr_core  --name name --wallclock wallclock --account account --nodes nodes  ... ;
          echo "       ... " --cores cores --par --seq --adapp --queue qname --option "options line" --constraint=constaint --help ; return ;;

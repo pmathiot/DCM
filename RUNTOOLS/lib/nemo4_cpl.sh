@@ -303,8 +303,8 @@ echo ""
 echo "            ***  Check/Create directory : ${CONFIG_CASE}-${DIROUText}.$no"
 mkdir -p  $DDIR/${CONFIG_CASE}-${DIROUText}.$no
 
-echo "            ***  Check/Create directory : ${CONFIG_CASE}-${MOOROUText}.$no"
 MOOROUText=MOORINGS
+#echo "            ***  Check/Create directory : ${CONFIG_CASE}-${MOOROUText}.$no"
 #JMM : eliminate creation of this dir ... dirty
 #mkdir -p  $DDIR/${CONFIG_CASE}-${MOOROUText}.$no
 
@@ -797,7 +797,7 @@ if [ $ICB = 1 ] ; then
       if [ $no = 1 ] ; then
          rapatrie $ICBCLV $P_I_DIR $F_DTA_DIR ${CN_ICBCLV}.nc
       else
-         rapatrie ${CN_ICBCLV}.nc ${CN_DIRRST}.$((no-1)) NONE ${CN_ICBCLV}.nc
+         rapatrie ${CN_ICBCLV}.nc $DDIR/${CN_DIRRST}.$((no-1)) NONE ${CN_ICBCLV}.nc
       fi
    else
       getcalving
@@ -1182,6 +1182,10 @@ echo '(4) Run the code'
 echo '----------------'
 echo ""
 date
+if [ $MACHINE == 'irene' ] ; then
+   #runcode_mpmd_irene $((NB_NPROC+NB_NPROC_IOS))
+   runcode_mpmd_irene $NB_NPROC ./nemo4.exe $NB_NPROC_IOS ./xios_server.exe
+else
 if [ $XIOS = 1 -a $NB_NPROC_IOS != 0 ] ; then
    NB_NCORE_DP=${NB_NCORE_DP:=0}
    if [ $NB_NCORE_DP != 0 ] ; then
@@ -1193,6 +1197,7 @@ if [ $XIOS = 1 -a $NB_NPROC_IOS != 0 ] ; then
    fi
 else
     runcode  $NB_NPROC ./nemo4.exe
+fi
 fi
 date
 #--------------------------------------------------------
@@ -1328,81 +1333,75 @@ case $STOP_FLAG in
       # from now, take care of using the correct namelist name in the calls !
 
     date
-    echo ' [5.5] Make restart tar files '
-    echo ' ============================='
-     # Build a script (to be submitted) for saving the individual ${filext}.$ext 
-     # restart files into a set of tar files and expatrie_res them.
-    mksavrst  zsrst.$ext.sh   
-
-     # Submit the save-restart script 
-     # When this script is finished ( asynchronously), there is a touch statement on file RST_DONE$mmm.$ext,
-     # that need to be checked before cleaning. 
-    submit ${P_CTL_DIR}/zsrst.$ext.sh
 
     if [ $ELMERCPL = 1 ]; then
 
+        echo ''
+        echo ' [5.5.1] Rebuilt restart files '
+        echo ' ============================='
+ 
         cd $DDIR/${CN_DIRRST}.${no} 
 
-        echo ''
-        echo ' [5.5.1] rebuild restart files'
-        echo ' -----------------------------'
-        echo ''
-
         # ocean
-        RSTOCEid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l occigen -m -d 1 -x 100 -y 100 -z 100 -t 1 -r 60Gb  restart-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
+        RSTOCEid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l ${MACHINE} -m -d 1 -x 100 -y 100 -z 1 -t 1 -r 60Gb  restart-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
         DEPENDENCYid="$RSTOCEid"
         echo "   *** rebuild ocean restart: jobid $RSTOCEid"
 
         # ice
         if [ $ICE = 1 ] ; then
-           RSTICEid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l occigen -m -d 1 -x 100 -y 100 -z 100 -t 1 -r 20Gb    restart_ice-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
+           RSTICEid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l ${MACHINE} -m -d 1 -x 100 -y 100 -z 1 -t 1 -r 20Gb    restart_ice-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
            DEPENDENCYid="$DEPENDENCYid:$RSTICEid"
            echo "   *** rebuild ice restart: jobid $RSTICEid"
         fi
 
         # icebergs
         if [ $ICB = 1 ] ; then
-           RSTICBid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l occigen -m -d 1 -x 100 -y 100 -z 100 -t 1 -r 10Gb -b restart_icb-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
+           RSTICBid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l ${MACHINE} -m -i -d 1 -x 100 -y 100 -z 1 -t 1 -r 10Gb restart_icb-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
            DEPENDENCYid="$DEPENDENCYid:$RSTICBid"
            echo "   *** rebuild iceberg restart: jobid $RSTICBid"
         fi
     fi
-    
-    cd $TMPDIR   # back in TMPDIR for sure
-
-    date
-    echo ""
-    echo ' [5.6] Ready to re-submit the job NOW (to take place in the queue)'
-    echo ' ================================================================='
-    echo ""
 
     if [ $ELMERCPL = 1 ]; then
         echo ""
-        echo ' [5.6.1] update nemo melt forcing name'
-        echo ' ====================================='
-        echo ""
-        mv $ISFMLT nemo_isf_melt.${ext}.nc
-        echo ""
-        echo ' [5.6.2] submit elmer job'
+        echo ' [5.6] submit elmer job'
         echo ' ========================='
         echo ""
-        submit ${P_CTL_DIR}/${SUBMIT_ELMER_SCRIPT}
-        ELMERid=`cat $TMPDIR/logsubmit | cut -d ' ' -f 4`
+        ELMERid=$(submit_elmer ${P_CTL_DIR}/${SUBMIT_ELMER_SCRIPT})
         echo "      jobid : $ELMERid"
         echo ''
         DEPENDENCYid="$DEPENDENCYid:$ELMERid"
     fi
+    date
 
+    echo ''
+    echo ' [5.7] Make restart tar files '
+    echo ' ============================='
+    # Build a script (to be submitted) for saving the individual ${filext}.$ext 
+    # restart files into a set of tar files and expatrie_res them.
+    mksavrst  zsrst.$ext.sh   
+
+    # Submit the save-restart script 
+    # When this script is finished ( asynchronously), there is a touch statement on file RST_DONE$mmm.$ext,
+    # that need to be checked before cleaning. 
+    SRSTid=$(submit ${P_CTL_DIR}/zsrst.$ext.sh $DEPENDENCYid)
     echo ""
-    echo ' [5.6.2] submit next nemo job'
+    echo "      jobid : $SRSTid"
+    echo ""
+
+    cd $TMPDIR   # back in TMPDIR for sure
+ 
+    echo ""
+    echo ' [5.8] submit next nemo job'
     echo ' ============================'
     echo ""
     TESTSUB=$( wc $DBFILE | awk '{print $1}' )
     if [ $TESTSUB -le  $MAXSUB -o -f  FORCE_RESUB ] ; then
-       submit  ${P_CTL_DIR}/${SUBMIT_SCRIPT} $DEPENDENCYid
+       NEMOid=$(submit  ${P_CTL_DIR}/${SUBMIT_SCRIPT} $DEPENDENCYid)
        cd $TMPDIR
-       cat $TMPDIR/logsubmit
-       echo ''
+       echo ""
+       echo "      jobid : $SRSTid"
+       echo ""
     else
        echo "   --- WARNING: Maximum auto re-submit reached."
     fi ;;
@@ -1444,6 +1443,7 @@ case $STOP_FLAG in
    
         if [ $DIAPTR = 1 ] ; then  # process diaptr files (one_file mode). Only rename
         date
+        echo ""
         echo ' [6.1.1] Process the rename of diaptr nc file from XIOS files '
         echo ' ========================================================='
             for member in $(seq  $ENSEMBLE_START $ENSEMBLE_END ) ; do
@@ -1465,6 +1465,7 @@ case $STOP_FLAG in
         cd $TMPDIR
 
         date
+        echo ""
         echo ' [6.1.2] Process the rename of zoomed  nc file from XIOS files '
         echo ' ========================================================='
 #      # look for zoom (in one_file mode). Assume domain_ref without 'grid' keyword
@@ -1526,7 +1527,10 @@ case $STOP_FLAG in
             if [ $MERGE = 0 ] ; then
                 echo "   ***  Recombine for XIOS using rebuild_nemo in a batch"
                 mkbuild_merge zmergxios.$ext.sh  
-                submit ${P_CTL_DIR}/zmergxios.$ext.sh
+                XIOSid=$(submit ${P_CTL_DIR}/zmergxios.$ext.sh)
+                echo ""
+                echo "      jobid : $XIOSid"
+                echo ""
             else  # MERGE on the fly 
                 echo "   ***  Recombine for XIOS using mergefile_mpp4 on the fly"
                 if [ $ENSEMBLE = 1 ] ; then 
@@ -1546,6 +1550,7 @@ case $STOP_FLAG in
 
     if [ $nmsh  != 0 ] ; then 
         date
+        echo ""
         echo ' [6.2] Process the rebuild of mesh_mask files'
         echo ' ============================================'
             echo '  ***  netcdf meshmask files'
@@ -1555,6 +1560,7 @@ case $STOP_FLAG in
 
     if [ $STOP_FLAG = 0 -a $DIAOBS = 1 ] ; then
         date
+        echo ""
         echo '   [6.2.2] Recombine and save OBS fdbk files '
         echo '   ------------------------------------------'
 #        cp ./fbcomb.exe $DDIR/${CN_DIAOBS}.$ext
@@ -1607,6 +1613,7 @@ eof
     fi
 
     date
+    echo ""
     echo ' [6.3] Pack some files in annex tar file for archiving on F machine'
     echo ' =================================================================='
      # note : next tar command takes into account all members of an ensemble run and all AGRIF zoom envolved
@@ -1617,6 +1624,7 @@ eof
     expatrie tarfile.${CONFIG_CASE}_annex.$ext  $F_S_DIR tarfile.${CONFIG_CASE}_annex.$ext
 
     date
+    echo ""
     echo ' [6.4] Extra diags output (for memory) '
     echo ' ========================='
     if [ $IFLOAT = 1 ] ; then
@@ -1640,10 +1648,11 @@ eof
 
     ( 2 )
     date
+    echo ""
     echo ' [6.0] No step performed exit then'
     echo '================================='
     echo "   ===  ERROR : final exit "
-    exit ;;
+    exit 42 ;;
 esac
 
 #########################################################################

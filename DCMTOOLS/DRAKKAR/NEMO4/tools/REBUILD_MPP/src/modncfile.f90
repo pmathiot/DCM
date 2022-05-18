@@ -48,7 +48,7 @@ MODULE modncfile
 
   CHARACTER(LEN=80) :: cf_in                              ! input file name
   CHARACTER(LEN=80) :: cf_root                            ! root input file name (for merge)
-  CHARACTER(LEN=80) :: cf_coor                            ! coordinate file name if used (for merge)
+  CHARACTER(LEN=255) :: cf_coor                            ! coordinate file name if used (for merge)
   CHARACTER(LEN=255) :: c_dirout='./'                     ! output directory
 
   CHARACTER(LEN=80), DIMENSION(:), ALLOCATABLE :: cf_list ! list of input <file*>_0000.nc

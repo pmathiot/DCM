@@ -44,7 +44,7 @@ xios_mvnc2s() {
             freq=${d%_*}
             mkdir -p $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/
             cd $d
-            nfil=$( ls -1 ${CONFIG}*-${CASE}_y????*.${freq}_*.nc ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null | wc -l )
+            nfil=$( ls -1 ${CONFIG}*-${CASE}_y????*.${freq}_*.nc ${CONFIG}*-${CASE}_*_icbtrj.nc *${CONFIG}-${CASE}_elmer_????1231.??.365d* 2>/dev/null | wc -l )
             printf "%4s : %5d to be moved" $freq $nfil
             if [ $nfil != 0 ] ; then
               for f in `ls ${CONFIG}*-${CASE}_y????*.${freq}_*.nc 2>/dev/null` ; do
@@ -57,6 +57,9 @@ xios_mvnc2s() {
               for f in `ls ${CONFIG}*-${CASE}_*_icbtrj.nc 2>/dev/null` ; do
                  mv $f  $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/.
                  #printf "   * file %-50s moved \n" $f
+              done
+              for f in `ls *${CONFIG}-${CASE}_elmer_????1231.??.365d* 2>/dev/null` ; do
+                 mv $f  $DDIR/$CONFIG/${CONFIG}-${CASE}-S/$freq/.
               done
             else
                printf "     no files to transmit in $d"

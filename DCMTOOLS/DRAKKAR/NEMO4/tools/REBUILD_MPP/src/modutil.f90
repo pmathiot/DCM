@@ -515,10 +515,10 @@ print *, 'JMMMM : ', sf_out%nlen(sf_out%kdimid)
                          SELECT CASE ( sl_fin(ijrank)%c_vnam(jvar) )
                          CASE ('nav_lon') 
                             PRINT *, 'replace nav_lon'
-                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d > 200. )  dl_wrk_2d = dglam(ii1:ii2, ij1:ij2 )
+                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d > 200. .OR. dl_wrk_2d == -1 )  dl_wrk_2d = dglam(ii1:ii2, ij1:ij2 )
                          CASE ('nav_lat') 
                             PRINT *, 'replace nav_lat'
-                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d > 200. )  dl_wrk_2d = dgphi(ii1:ii2, ij1:ij2 )
+                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d > 200. .OR. dl_wrk_2d == -1 )  dl_wrk_2d = dgphi(ii1:ii2, ij1:ij2 )
                          END SELECT
                       ENDIF
 
@@ -617,7 +617,7 @@ print *, 'JMMMM : ', sf_out%nlen(sf_out%kdimid)
     IF ( INDEX(cf_root, 'grid_V' ) /= 0 ) THEN ; cl_glam='glamv' ; cl_gphi='gphiv' ; 
     ENDIF
 
-    ierr = NF90_OPEN(cf_coor, NF90_NOWRITE, icid )
+    CALL Check(NF90_OPEN(cf_coor, NF90_NOWRITE, icid ), 'open '//TRIM(cf_coor))
     ierr = NF90_INQ_DIMID(icid,'x', id ) ; ierr = NF90_INQUIRE_DIMENSION( icid, id, len=ix)
     ierr = NF90_INQ_DIMID(icid,'y', id ) ; ierr = NF90_INQUIRE_DIMENSION( icid, id, len=iy)
     IF ( ix /= sf_in%isize_global(1) ) lchk = .TRUE.
@@ -630,13 +630,23 @@ print *, 'JMMMM : ', sf_out%nlen(sf_out%kdimid)
     ENDIF
 
     ALLOCATE ( dglam(ix,iy) , dgphi(ix,iy) )
-    ierr = NF90_INQ_VARID(icid,cl_glam, id ) ; ierr = NF90_GET_VAR(icid, id, dglam )
-    ierr = NF90_INQ_VARID(icid,cl_gphi, id ) ; ierr = NF90_GET_VAR(icid, id, dgphi )
+    CALL Check(NF90_INQ_VARID(icid,cl_glam, id ),'getvarid '//TRIM(cl_glam)) ; CALL Check(NF90_GET_VAR(icid, id, dglam ),'getvar '//TRIM(cl_glam))
+    CALL Check(NF90_INQ_VARID(icid,cl_gphi, id ),'getvarid '//TRIM(cl_gphi)) ; CALL Check(NF90_GET_VAR(icid, id, dgphi ),'getvar '//TRIM(cl_gphi))
 
     ierr = NF90_CLOSE(icid )
     GetCoord = 0
 
   END FUNCTION GetCoord
+
+  SUBROUTINE check(status,cmsg)
+    integer, intent ( in) :: status
+    CHARACTER(len=*), INTENT(in) :: cmsg
+    
+    IF (status /= nf90_noerr) THEN
+      PRINT *, TRIM(cmsg)//' : '//TRIM(nf90_strerror(status))
+      STOP 2
+    END IF
+  END SUBROUTINE Check 
 
   FUNCTION PrintNcFile (sd_nc)
     !!---------------------------------------------------------------------

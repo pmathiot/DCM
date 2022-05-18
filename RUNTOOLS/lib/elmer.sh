@@ -15,7 +15,7 @@ if [ ! -d $TMPDIR_ELMER  ]; then mkdir $TMPDIR_ELMER  ; fi
 cd $TMPDIR_ELMER
 
 # mkdir MSH and partitioning directory
-if [ ! -d MSH/partitioning.$SLURM_NTASKS  ]; then mkdir -p MSH/partitioning.$SLURM_NTASKS ; fi
+if [ ! -d MSH/partitioning.$SLURM_NTASKS  ]; then mkdir MSH/; chmod g+s MSH ; mkdir -p MSH/partitioning.$SLURM_NTASKS ; chmod g+s MSH/partitioning.$SLURM_NTASKS; fi
 
 echo '(0) define path'
 echo '---------------'
@@ -67,12 +67,6 @@ echo "           ***  ELMER coupling frequency is : ${ndays}d "
     RSTDIROUT=$DDIR/${CONFIG_CASE}-RST.${no}
     OUTDIR=$DDIR/${CONFIG_CASE}-XIOS.${no}
 
-echo " [1.1]  copy script"
-echo " =================="
-echo ''
-echo "   *** copy elmer executable from $ELMER_PATH"
-\cp $ELMER_PATH/BLD/* .
-
 echo ''
 echo '(2) Set up the namelist for this run from template'
 echo '--------------------------------------------------'
@@ -83,7 +77,7 @@ echo " ================================"
 echo ''
 \cp $P_CTL_DIR/elmer_incf.${CONFIG_CASE} elmer.incf
 sed  -e "s@<RUNNAME>@${CONFIG_CASE}_elmer.${no}@g"    \
-     -e "s@<MELTFILE>@isf_melt_${TAGOUT}_elmer.nc@g"  \
+     -e "s@<MELTFILE>@isfmelt-${no}_${ndays}d_elmer_drown.nc@g"  \
      -e "s@<MELTVAR>@${ISFMELTvar}@g"               \
      -e "s@<ELMER_DTA_DIR>@${P_ELM_DIR}@g" elmer.incf > zincf
 \cp zincf elmer.incf
@@ -97,10 +91,11 @@ sed  -e "s@<ID-1>@elmer_rst_${TAGIN}@g"                    \
      -e "s@<ELMERDATADIR>@${P_ELM_DIR}@g"                  \
      -e "s@<MESH>@${ELMERMESH}@g"                          \
      -e "s@<ELMERTONEMO>@${ELMERTONEMO}@g"                 \
-     -e "s@<ELMERMELT>@isfmelt-${no}_${ndays}d_elmer.nc@g" \
      -e "s@<ISFDRAFT>@isfdraft_${TAGOUT}_elmer.nc@g"       \
      -e "s@<RSTFILEa>@elmer_rst_${TAGIN}.result@g"         \
      -e "s@<RSTFILEb>@elmer_rst_${TAGOUT}.result@g"        \
+     -e "s@<OUTINITMIP>@${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_INITMIP.dat@g"  \
+     -e "s@<OUTSCAL>@${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_scal.dat@g"        \
      -e "s@<OUTFILE>@${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d.vtu@g" elmer.sif  > zsif
 \cp zsif elmer.sif
 
@@ -182,14 +177,26 @@ echo ' ====================='
         done
     else
         echo '   ***  Rapatrie elmer restart.'
-        for zfile in `ls $P_ELM_DIR/elmer_rst_${TAGIN}.result.*`; do
+        for zfile in `ls $RSTDIRIN/elmer_rst_${TAGIN}.result.*`; do
            file=`basename $zfile`
            rapatrie $file $RSTDIRIN NONE MSH/$file
         done
     fi
 
 echo ''
-echo ' [3.5] : get elmer grid'
+echo ' [3.5] : mask files'
+echo ' =================='
+
+    if [ $no -eq  1 ] ; then
+        echo '   ***  Rapatrie initial mesh_mask.'
+        rapatrie $file ${MESHMASK} NONE ${NEMO_MESHMASK}_${TAGIN}.nc
+    else
+        echo '   ***  Rapatrie mesh_mask from restart.'
+        rapatrie ${NEMO_MESHMASK}_${TAGIN}.nc $RSTDIRIN NONE ${NEMO_MESHMASK}_${TAGIN}.nc
+    fi
+
+echo ''
+echo ' [3.6] : get elmer grid'
 echo ' ======================'
 echo ''
 
@@ -199,7 +206,7 @@ echo ''
      done
 
 echo ''
-echo ' [3.6] : NEMO to ELMER files (melt, grid and weights)"'
+echo ' [3.7] : NEMO to ELMER files (melt, grid and weights)"'
 echo ' ====================================================='
 echo ''
 echo "    *** melt is extracted from $RSTDIROUT"
@@ -210,14 +217,21 @@ echo "    *** melt is extracted from $RSTDIROUT"
     rapatrie $NEMOCDOgrid ${P_I_DIR} NONE $NEMOCDOgrid
     rapatrie $NEMOtoELMERwght ${P_I_DIR} NONE $NEMOtoELMERwght
 
-echo "    *** compute interpolation of isf_melt_${TAGOUT}.nc onto ELMER grid"
+if [[ $LMELTEXTRAPOLATION == 1 ]]; then
+    echo "    *** extrapolate isf_melt_${TAGOUT}.nc (ie very basic parametrisation of non resolved cell)"
+    ${SOSIE_PATH}/mask_drown_field.x -D -i isf_melt_${TAGOUT}.nc -v soisfmelt_elmer -x nav_lon -y nav_lat -z depth -t time_counter -m 0 -p 1 -g 100 -o isf_melt_${TAGOUT}_drown.nc
+else
+    echo "    *** raw melt from NEMO is used"
+fi
+
+echo "    *** compute interpolation of isf_melt_${TAGOUT}_drown.nc onto ELMER grid"
 
 echo "             - cp NEMOCDO grid to tmp file"
     tmpfile=ztmp.nc
     \cp $NEMOCDOgrid $tmpfile                                           || exit 42
 
 echo "             - add melt data to tmp file"
-    ncks -A -C -v ${ISFMELTvar} isf_melt_${TAGOUT}.nc $tmpfile           || exit 42
+    ncks -A -C -v ${ISFMELTvar} isf_melt_${TAGOUT}_drown.nc $tmpfile           || exit 42
 
 echo "             - update coordinate attribute"
     ncatted -a coordinates,${ISFMELTvar},m,c,"lon lat" $tmpfile          || exit 42
@@ -227,10 +241,10 @@ echo "             - set fill value to 0 and delete it because 0 is a valid data
     ncatted -a missing_value,${ISFMELTvar},d,,     -a _FillValue,${ISFMELTvar},d,, $tmpfile                    || exit 42
 
 echo "             - compute the interpolation"
-    cdo remap,$ELMERCDOgrid,$NEMOtoELMERwght -selname,${ISFMELTvar} $tmpfile isfmelt-${no}_${ndays}d_elmer.nc || exit 42
+    cdo remap,$ELMERCDOgrid,$NEMOtoELMERwght -selname,${ISFMELTvar} $tmpfile isfmelt-${no}_${ndays}d_elmer_drown.nc || exit 42
 
 echo "             - change the _fillvalue for Elmer"
-    ncatted -a _FillValue,${ISFMELTvar},m,f,-9999 isfmelt-${no}_${ndays}d_elmer.nc                            || exit 42
+    ncatted -a _FillValue,${ISFMELTvar},m,f,-9999 isfmelt-${no}_${ndays}d_elmer_drown.nc                            || exit 42
 
 echo ''
 echo ' [3.7] : ELMER to NEMO files (melt, grid and weights)"'
@@ -252,13 +266,14 @@ touch donecopy
 echo '(4) Run the code'
 echo '----------------'
 echo ''
+
 date
 echo elmer.sif > ELMERSOLVER_STARTINFO
-srun --mpi=pmi2 -K1 --resv-ports -n $NB_NPROC_ELMER $ELMER_HOME/bin/ElmerSolver_mpi
+ccc_mprun $ELMER_HOME/bin/ElmerSolver_mpi
+#srun --mpi=pmi2 -K1 --resv-ports -n $NB_NPROC_ELMER $ELMER_HOME/bin/ElmerSolver_mpi
 STOP_FLAG=$?
 date
-ls
-ls MSH/*
+
 echo ''
 echo '(5) Post processing of the run'
 echo '------------------------------'
@@ -297,8 +312,11 @@ case $STOP_FLAG in
 
     if [ ! -d $OUTDIR/ist_OUTPUT ]; then mkdir $OUTDIR/ist_OUTPUT ; fi
 
-    \cp MSH/${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_*np*_t????.*vtu $OUTDIR/ist_OUTPUT/.  || exit 42
-    \cp MSH/${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_t????.pvtu $OUTDIR/ist_OUTPUT/.  || exit 42
+    \cp MSH/${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_*np*_t????.*vtu $OUTDIR/ist_OUTPUT/.        || exit 42
+    \cp MSH/${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_t????.pvtu $OUTDIR/ist_OUTPUT/.             || exit 42
+    \cp Basin??_${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_INITMIP.dat* $OUTDIR/ist_OUTPUT/.       || exit 42
+    \cp _${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_INITMIP.dat.names $OUTDIR/ist_OUTPUT/Basin_${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_INITMIP.dat.names || exit 42
+    \cp ${CONFIG_CASE}_elmer_${TAGOUT}.${ndays}d_scal.dat* $OUTDIR/ist_OUTPUT/.                  || exit 42
 
     date
     echo ''
@@ -317,7 +335,7 @@ case $STOP_FLAG in
         date
         cp namelist_dom namelist_cfg
         cp namelist_dom namelist_ref
-        time srun -n $NB_NPROC_ELMER ${NEMOTOOLS_DOMAINCFG_PATH}/make_domain_cfg.exe 
+        time ccc_mprun ${NEMOTOOLS_DOMAINCFG_PATH}/make_domain_cfg.exe 
         if [[ $? != 0 ]]; then echo '';echo 'error in make_domain_cfg.exe'; echo '';exit 42; else echo 'make_domain_cfg.exe finished correctly'; fi
         cp namelist_dom ${CONFIG_CASE}_namelist_dom_${TAGOUT}
         cp ocean.output ${CONFIG_CASE}_domain.output_${TAGOUT}
@@ -366,7 +384,9 @@ case $STOP_FLAG in
     echo "             *** copy domain_cfg.nc to $RSTDIROUT/${NEMO_DOMAINCFG}_${TAGOUT}.nc"
     date
     mv domain_cfg.nc ${NEMO_DOMAINCFG}_${TAGOUT}.nc                              || exit 42
+    mv mesh_mask.nc  ${NEMO_MESHMASK}_${TAGOUT}.nc                              || exit 42
     cp ${NEMO_DOMAINCFG}_${TAGOUT}.nc $RSTDIROUT/${NEMO_DOMAINCFG}_${TAGOUT}.nc  || exit 42 # copy in restart dir
+    cp ${NEMO_MESHMASK}_${TAGOUT}.nc  $RSTDIROUT/${NEMO_MESHMASK}_${TAGOUT}.nc  || exit 42 # copy in restart dir
     cp ${NEMO_DOMAINCFG}_${TAGOUT}.nc ${TMPDIR}/${NEMO_DOMAINCFG}_${TAGOUT}.nc   || exit 42 # copy in TMPDIR ready for next run
     date
     echo ''
@@ -376,7 +396,7 @@ case $STOP_FLAG in
         echo ''
         date
         echo ''
-        echo "    *** tar mesh_mask.${ndastpdeb}.nc ${NEMO_DOMAINCFG}_${TAGOUT}.nc isfdraft_${TAGOUT}.nc as geometry file"    
+        echo "    *** tar ${NEMO_MESHMASK}_${TAGOUT}.nc ${NEMO_DOMAINCFG}_${TAGOUT}.nc isfdraft_${TAGOUT}.nc as geometry file"    
         tar -cvf ${CONFIG_CASE}_nemo_geo_${TAGOUT}.tar ${NEMO_DOMAINCFG}_${TAGOUT}.nc isfdraft_${TAGOUT}.nc || nerr=$((nerr+1))
 
         echo "    *** add elmer calving (if needed) to rst tar file"

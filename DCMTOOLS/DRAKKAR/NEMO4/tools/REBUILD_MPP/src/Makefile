@@ -1,10 +1,11 @@
-NCDF = -I$(NETCDF_INCDIR) -I$(NETCDFF_INCDIR) $(NETCDF_LDFLAGS) $(NETCDFF_LDFLAGS)
+NCDF = -I$(NETCDF_INCDIR) -I$(NETCDFFORTRAN_INCDIR) $(NETCDF_LDFLAGS) $(NETCDFFORTRAN_LDFLAGS)
 
 #FFLAGS= -O2 $(NCDF) $(NC4)  -CB -fpe0 -ftrapuv -traceback -g  -fp-model precise
 #FFLAGS= -O2 $(NCDF) $(NC4)  -CB  -traceback -g
 FFLAGS= -O2  $(NCDF) $(NC4) -fp-model precise
 F90=$(DCM_FC90)
-MPF90=$(CMPPF90)
+MPF90=$(DCM_FC90) 
+#$(CMPPF90)
 
 BINDIR = ../
 
