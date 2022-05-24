@@ -272,10 +272,14 @@ print *, 'JMMMM : ', sf_out%nlen(sf_out%kdimid)
     ipos       = INDEX( cl_dum,'-')
     cl_tagi    = cl_dum(ipos+1 : )
 
-    IF ( TRIM(cl_tagi(7:8)) /= '' )  THEN
-       cl_tago    = 'y'//TRIM(cl_tagi(1:4))//'m'//TRIM(cl_tagi(5:6))//'d'//TRIM(cl_tagi(7:8))
-    ELSE
-       cl_tago    = 'y'//TRIM(cl_tagi(1:4))//'m'//TRIM(cl_tagi(5:6))
+    IF ( TRIM(cl_tagi(5:6)) /= '' ) THEN
+      IF ( TRIM(cl_tagi(7:8)) /= '' ) THEN
+         cl_tago    = 'y'//TRIM(cl_tagi(1:4))//'m'//TRIM(cl_tagi(5:6))//'d'//TRIM(cl_tagi(7:8))
+      ELSE
+         cl_tago    = 'y'//TRIM(cl_tagi(1:4))//'m'//TRIM(cl_tagi(5:6))
+      ENDIF
+    ELSE 
+      cl_tago   = 'y'//TRIM(cl_tagi(1:4))
     ENDIF
 
     ! build the final name
@@ -512,9 +516,9 @@ print *, 'JMMMM : ', sf_out%nlen(sf_out%kdimid)
                       IF ( lg_coord ) THEN
                          SELECT CASE ( sl_fin(ijrank)%c_vnam(jvar) )
                          CASE ('nav_lon') 
-                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d > 200. )  dl_wrk_2d = dglam(ii1:ii2, ij1:ij2 )
+                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d == -1. .OR. dl_wrk_2d > 200. )  dl_wrk_2d = dglam(ii1:ii2, ij1:ij2 )
                          CASE ('nav_lat') 
-                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d > 200. )  dl_wrk_2d = dgphi(ii1:ii2, ij1:ij2 )
+                            WHERE ( dl_wrk_2d == 0 .OR. dl_wrk_2d == -1. .OR. dl_wrk_2d > 200. )  dl_wrk_2d = dgphi(ii1:ii2, ij1:ij2 )
                          END SELECT
                       ENDIF
 

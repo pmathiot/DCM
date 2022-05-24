@@ -162,7 +162,8 @@ SetYears()          {
      else
        yearm1=$( tail -2 $dbfile | head -1 | awk '{ print int($NF/10000) }' )
        yearm1=$(( yearm1 - 1 ))
-       yearp1=$(( yearm1 + $znyear + 1 ))
+#JMM add 1 to be sure ...
+       yearp1=$(( yearm1 + $znyear + 2 ))
      fi
 
        yearm1=$( printf "%04d" $yearm1 )
@@ -197,14 +198,30 @@ getforcing()        {
          if [ $tmp = T ] ; then filter="$filter | grep -v sn_wndi  | grep -v sn_wndj " ; fi
          ln_clim_forcing=$tmp
 
+         # check for cloud cover
+         tmp=$( LookInNamelist  sn_cc ) 
+         if [ $tmp = NOT ] ; then filter="$filter | grep -v sn_cc " ; fi
+
+         # check for WDMP forcing
+         tmp=$( LookInNamelist ln_wdmp );  tmp=$(normalize $tmp )
+         ln_wdmp=$tmp
+
          getweight $blk $P_WEI_DIR $F_WEI_DIR
          getfiles $blk  $P_FOR_DIR $F_FOR_DIR
 
-         if [ $ln_clim_forcing = T ] ; then
-           filter="$filter | grep -v sn_kati | grep -v sn_katj"
-           blk_clim=namsbc_blk_drk
-           getweight $blk_clim $P_WEI_DIR $F_WEI_DIR
-           getfiles $blk_clim  $P_FOR_DIR $F_FOR_DIR
+         # note than ln_clim_forcing and ln_wdmp cannot be T at the same time !!!
+         if [ $ln_clim_forcing = T -o $ln_wdmp = T ] ; then
+           if [ $ln_clim_forcing = T ] ; then
+             filter="$filter | grep -v sn_kati | grep -v sn_katj  "
+           else
+             filter="$filter | grep -v sn_kati | grep -v sn_katj | grep v sn_wmod | grep -v sn_uw | grep -v sn_vw  "
+           fi
+           if [ $ln_wdmp = F ] ; then
+             filter="$filter  grep -v sn_wdmp"
+           fi
+           blk_drk=namsbc_blk_drk
+           getweight $blk_drk $P_WEI_DIR $F_WEI_DIR
+           getfiles $blk_drk  $P_FOR_DIR $F_FOR_DIR
          fi ;;
     
 
@@ -227,7 +244,7 @@ getforcing()        {
         filter=''
         tmp=$( LookInNamelist ln_kata namelist namsbc_blk_drk)  ;  tmp=$(normalize $tmp )
         if [ $tmp = T ] ; then 
-          filter="$filter | grep -v sn_wmod | grep -v sn_uw | grep -v sn_vw"
+          filter="$filter | grep -v sn_wmod | grep -v sn_uw | grep -v sn_vw | grep -v s sn_wdmp"
           getfiles namsbc_blk_drk  $P_DTA_DIR $F_DTA_DIR 
         fi
      fi
@@ -243,9 +260,18 @@ getforcing()        {
      if [ $tmp = T ] ; then blk=namsbc_wave ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR ;  fi
 
      # RUN_OFF 
-     filter='| grep -v sn_s_rnf | grep -v sn_t_rnf | grep -v sn_dep_rnf '
+     filter='| grep -v sn_s_rnf | grep -v sn_t_rnf | grep -v sn_dep_rnf | grep -v sn_i_rnf '
      tmp=$(LookInNamelist ln_rnf namelist) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR ;  fi
+
+      # test if there are additional files to look at
+      nn_rnf_freq=$(LookInNamelist nn_rnf_freq  namelist namsbc_rnf_drk)
+      if [ $nn_rnf_freq ] ; then  # found the namberg_drk block !
+        blk_extra=namsbc_rnf_drk
+        if [ $nn_rnf_freq -gt 1 ] ; then
+            getfiles $blk_extra $P_DTA_DIR $F_DTA_DIR
+        fi
+      fi
 
      # extra files 
      filter='| grep -v sn_rnf | grep -v sn_cnf '
@@ -271,6 +297,13 @@ getforcing()        {
      else 
        extra=1
      fi 
+     #  iceberg runoff
+     tmp=$(LookInNamelist ln_rnf_icb namelist) ; tmp=$(normalize $tmp )
+     if [ $tmp = F ] ; then
+       filter="$filter | grep -v sn_i_rnf "
+     else
+       extra=1
+     fi
 
      if [ $extra = 1 ] ; then
        blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR 
@@ -443,15 +476,25 @@ getgeo()  {
 # ---
 # get calving file
 getcalving()  {
+        SetYears
         filter=''
         nn_test_icebergs=$(LookInNamelist nn_test_icebergs  namelist)
         if [ $nn_test_icebergs = -1 ] ; then
            blk=namberg ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
         fi
+        # test if there are additional files to look at
+        nn_icb_freq=$(LookInNamelist nn_icb_freq  namelist namberg_drk)
+        if [ $nn_icb_freq ] ; then  # found the namberg_drk block !
+          blk=namberg_drk
+          if [ $nn_icb_freq -gt 1 ] ; then
+              getfiles $blk $P_DTA_DIR $F_DTA_DIR
+          fi
+        fi
           }
 # ---
 # get isf files
 getisf () {
+       SetYears
        filter=''
        nn_isf=$(LookInNamelist nn_isf  namelist)
        blk=namsbc_isf
@@ -463,12 +506,27 @@ getisf () {
        if [ $nn_isf = 3 ] ; then  # 
          filter='| grep -v sn_fwfisf | grep -v sn_Leff_isf ' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
+         # test if there are additional files to look at
+         filter=''
+         nn_rnfisf_freq=$(LookInNamelist nn_rnfisf_freq  namelist namsbc_isf_drk)
+         if [ $nn_rnfisf_freq ] ; then  # found the namsbc_isf_drk block !
+            blk=namsbc_isf_drk
+            if [ $nn_rnfisf_freq -gt 1 ] ; then
+               getfiles $blk $P_DTA_DIR $F_DTA_DIR
+            fi
+         fi
        fi
        if [ $nn_isf = 4 ] ; then  # 
          filter='| grep -v sn_rnfisf | grep -v sn_Leff_isf | grep -v sn_depmax_isf | grep -v sn_depmin_isf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
           }
+# ---
+# getsteric for getting TS climatology used in IMHOTEP
+getsteric()   {
+        filter=''
+        blk=nam_diaar5_drk  ; getfiles $blk $P_DTA_DIR $F_DTA_DIR
+              }
 # ---
 # get diaptr subbasins mask obsolete in Nemo4 so far ... (harcoded names)
 getdiaptr()  {
@@ -485,7 +543,7 @@ getobs () {
   fi
 
   # hard coded file names
-  root_enact=EN3_v2a_Profiles_
+  root_enact=EN.4.2.1.f.profiles.l09.
   root_sla=fdbk_j2_
   slaRefLevel='slaReferenceLevel.nc'
 
@@ -493,50 +551,70 @@ getobs () {
   rdt=$(echo 1 | awk "{ rdt=int($rdt); print rdt}" )
 
   ndays=$( echo 1 | awk "{ a=int( ($nitend - $nit000 +1)*$rdt /86400.) ; print a }" )
+#  ndays=$(( ndays + 10 ))
+  ndays=$(( ndays  ))
   ndastpfin=$( ./datfinyyyy $ndastpdeb $ndays )
 
   yyyy1=${ndastpdeb:0:4}
   mm1=${ndastpdeb:4:2}
+#JM
+  tmp=$(( 10#${mm1} + 1 ))
+  if  [ $tmp = 13 ] ; then
+    yyyy1=$(( yyyy1 + 1 ))
+    tmp=1
+  fi
+  mm1=$( printf "%02d" $tmp )
+
+  mdastpdeb=${yyyy1}$mm1  
+#  mdastpdeb=${ndastpdeb:0:6}
 
   yyyy2=${ndastpfin:0:4}
   mm2=${ndastpfin:4:2}
+  mdastpfin=${ndastpfin:0:6}
 
  if [ $ENACT = 1 ] ; then
    # ENACT
-   flist=''
+   flist=
    for y in $(seq $yyyy1 $yyyy2) ; do
      for m in $(seq -f '%02g' 1 12 ) ; do
-       f=$root_enact$y$m.nc
-       if [ $y = $yyyy1 ] ; then
-         if [ $m -ge $mm1 ] ; then 
+       mdastpcur=$y$m
+       f=$root_enact${y}${m}_fdbk.nc
+       if [ $mdastpcur -ge $mdastpdeb  -a $mdastpcur -le $mdastpfin ] ; then
            if [ -f $P_ENA_DIR/$f ] ; then
              flist="$flist '$f' "
              rapatrie $f  $P_ENA_DIR $F_ENA_DIR $f
            fi
-         fi
-       elif [ $y = $yyyy2 ] ; then
-         if [ $m -le $mm2 ] ; then 
-           if [ -f $P_ENA_DIR/$f ] ; then
-             flist="$flist '$f' "
-             rapatrie $f  $P_ENA_DIR $F_ENA_DIR $f
-           fi
-         fi
-       else
-         if [ -f $P_ENA_DIR/$f ] ; then
-           flist="$flist '$f' "
-           rapatrie $f  $P_ENA_DIR $F_ENA_DIR $f
-         fi
        fi
+#       if [ $y = $yyyy1 ] ; then
+#         if [ $m -ge $mm1 -a  $m -le $mm2] ; then 
+#           if [ -f $P_ENA_DIR/$f ] ; then
+#             flist="$flist '$f' "
+#             rapatrie $f  $P_ENA_DIR $F_ENA_DIR $f
+#           fi
+#         fi
+#       elif [ $y = $yyyy2 ] ; then
+#         if [ $m -le $mm2 ] ; then 
+#           if [ -f $P_ENA_DIR/$f ] ; then
+#             flist="$flist '$f' "
+#             rapatrie $f  $P_ENA_DIR $F_ENA_DIR $f
+#           fi
+#         fi
+#       else
+#         if [ -f $P_ENA_DIR/$f ] ; then
+#           flist="$flist '$f' "
+#           rapatrie $f  $P_ENA_DIR $F_ENA_DIR $f
+#         fi
+#       fi
      done
    done
 
-   cat namelist | sed -e "s/ENACTFILES_LIST/$flist/" > znamelist1
-   mv znamelist1 namelist
+   cat namelist_cfg | sed -e "s/ENACTFILES_LIST/$flist/" > znamelist1
+   mv znamelist1 namelist_cfg
  fi
 
  if [ $SLA = 1 ] ; then
    rapatrie $slaRefLevel $P_SLA_DIR $F_SLA_DIR $slaRefLevel
-   flist=''
+   flist=
    for y in $(seq $yyyy1 $yyyy2) ; do
       f=$root_sla$y.nc
       if [ -f  $P_SLA_DIR/$f ] ; then
@@ -545,8 +623,8 @@ getobs () {
       fi
    done
 
-   cat namelist | sed -e "s/SLAFBFILES_LIST/$flist/" > znamelist1
-   mv znamelist1 namelist
+   cat namelist_cfg | sed -e "s/SLAFBFILES_LIST/$flist/" > znamelist1
+   mv znamelist1 namelist_cfg
  fi
         }
 #---
@@ -574,7 +652,7 @@ getweight() {
 # get data files associated with the block namelist ( eventually filtered )
 getfiles()  {
          # This function is now accepting bdy request
-         # the key "sn_" is thus now a variable that can take either sn_ or bn_ 9for BDY)
+         # the key "sn_" is thus now a variable that can take either sn_ or bn_ for BDY)
          zstr="sn_"
          zbdyset=""
          bdyflag=0
@@ -924,7 +1002,7 @@ cat << eof >> $1    # Submit script name given as argument
    # $ to be maintained in the final script are replaces by @, then automatic edition
    # replace the @ by $ [ this is necessary because we are at the second level of script
    # creation !
-   cat << eof1 > ztmp
+   cat << eof1 > ztmprst
 #!/bin/bash
    set -x
    . ./includefile.sh
@@ -941,7 +1019,7 @@ cat << eof >> $1    # Submit script name given as argument
    cd $DDIR
    tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm
 eof1
-   cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
+   cat ztmprst | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
 
    mpmd_arg="\$mpmd_arg 1 ./$1\${mmm}.sh"           # prepare the command line for runcode function
@@ -992,7 +1070,7 @@ cat << eof >> $1    # Submit script name given as argument
    # $ to be maintained in the final script are replaces by @, then automatic edition
    # replace the @ by $ [ this is necessary because we are at the second level od script
    # creation !
-   cat << eof1 > ztmp
+   cat << eof1 > ztmprst2
 #!/bin/bash
    set -x
    . ./includefile.sh
@@ -1143,7 +1221,7 @@ cat << eof >> $1    # Submit script name given as argument
 
    touch RST_DONE\${mmm}.\$ext
 eof1
-   cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
+   cat ztmprst2 | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
 
    mpmd_arg="\$mpmd_arg 1 ./$1\${mmm}.sh"           # prepare the command line for runcode function
@@ -1353,10 +1431,23 @@ eof
               for f in *scalar*_0000.nc ; do
                  CONFCASE=\$( echo \$f | awk -F_ '{print \$1}' )
                  freq=\$( echo \$f | awk -F_ '{print \$2}' )
+                 freq_unit=\${freq:1}
                  tag=\$( echo \$f | awk -F_ '{print \$5}' | awk -F- '{print \$1}' )
-                 date=y\${tag:0:4}m\${tag:4:2}d\${tag:6:2}
 
-                 g=\${CONFCASE}_\${date}.\${freq}_icescalar.nc
+                 case  \$freq_unit  in
+                 ('m') date=y\${tag:0:4}m\${tag:4:2} ;;
+                 ('y') date=y\${tag:0:4} ;;
+                 ( * ) date=y\${tag:0:4}m\${tag:4:2}d\${tag:6:2} ;;
+                 esac
+
+                 typ=\$(echo \$f | awk -F_ '{ print \$3}')
+                 case \$typ in
+                 ( 'SBC' ) filext='icescalar' ;;
+                 ( 'FWB' ) filext='fwbscalar' ;;
+                 ( *     ) filext='unkscalar' ;;
+                 esac
+
+                 g=\${CONFCASE}_\${date}.\${freq}_\${filext}.nc
                  OUTDIR=../\${freq}_OUTPUT
                  mkdir -p \$OUTDIR
                  cp \$f \$OUTDIR/\$g
@@ -1472,16 +1563,16 @@ post_process_one_file()  {
          DDIR=${DDIR:-$CDIR}
          ls -ld WRK.* > /dev/null 2>&1
          if [ $? = 0 ] ; then
-            ztmp=../WRK.*
+            ztmpof=../WRK.*
          else
-            ztmp=.
+            ztmpof=.
          fi
          # mkdir <freq>_OUTPUT directories according to existing files
          for freq in 1ts 1h 3h 1d 3d 5d 1m 1mo ; do
 #            ls *${freq}*_????????-????????.nc  > /dev/null 2>&1 
             ls *${freq}*_*-*.nc  > /dev/null 2>&1 
             if [ $? = 0 ] ; then 
-               mkdir -p ${ztmp}/${freq}_OUTPUT
+               mkdir -p ${ztmpof}/${freq}_OUTPUT
             fi
          done
          # check if zoom coordinates are there in case of zoom
@@ -1561,8 +1652,8 @@ post_process_one_file()  {
          # cd TMPDIR required in the calling program
                          }
 # ---
-# rename_out : rename NEMO output file to <ztmp>/<freq>_OUTPUT/<CONFIG><zoomid>-<CASE>_<tag>_<type>.nc
-#    ztmp is either . in case of standard output or the name of a WRK directory (ensemble run)
+# rename_out : rename NEMO output file to <ztmpof>/<freq>_OUTPUT/<CONFIG><zoomid>-<CASE>_<tag>_<type>.nc
+#    ztmpof is either . in case of standard output or the name of a WRK directory (ensemble run)
 #    it takes the NEMO name as input
 rename_out() {
             nemo_file=$1
@@ -1578,7 +1669,7 @@ rename_out() {
             zdd=${zndastp:6:2} ; zdd=${zdd:=00}
             ztag=y${zyy}m${zmm}d${zdd}.$zfreq
 
-            drak_file=${ztmp}/${zfreq}_OUTPUT/${CONFIG}${zoomid}-${CASE}${mmm}_${ztag}_$ztype.nc
+            drak_file=${ztmpof}/${zfreq}_OUTPUT/${CONFIG}${zoomid}-${CASE}${mmm}_${ztag}_$ztype.nc
             cp $nemo_file $drak_file
 #            mv $nemo_file $drak_file
              }
@@ -1761,16 +1852,91 @@ update_db_file()  {
     # add a new last line for the next run
     nstep_per_day=$(( 86400 / $rdt ))
 
+    # actual limit of current segment
+    nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
+    nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
+    ndays=$(( ( nitend - nit000 + 1 ) / nstep_per_day ))
+
+    dif=$((  $nitend - $nit000  + 1  ))
+
+   # specific case (6month segments)
    if [ $ndays = 185 ] ; then
      dif=$(( 180 * $nstep_per_day ))
    elif [ $ndays = 180 ] ; then
      dif=$(( 185 * $nstep_per_day ))
-   else
-  nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
-  nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
-#     dif=$(( 365 * $nstep_per_day ))
-     dif=$((  $nitend - $nit000  + 1  ))
    fi
+
+   # add trick for one year segment and leap year (note that yr 2100 is not a leap year ...)
+   if [ $ndays = 365 ] ; then
+      znxty=$(( ${aammdd:0:4} + 1 ))
+      if [ $(( $znxty % 4 )) = 0 ] ; then  # leap year
+        if [ $(( $znxty % 100 )) -eq  0   -a   $(( $znxty % 400 )) -ne  0 ] ; then
+          dif=$(( 365 * $nstep_per_day ))
+        else
+          dif=$(( 366 * $nstep_per_day ))
+        fi
+      fi
+   elif [ $ndays = 366 ] ; then
+        dif=$(( 365 * $nstep_per_day ))
+   fi
+
+   # add tricks for monthly segments (true month for XIOS)
+   # monthly is either 1 or other number, defined in includefile.sh
+   if [ $ndays -le 31 -a $monthly  -eq  1 ] ; then
+      # get end-date of last segment # note 10# trick to force numbers such as 01 02 ...07 to be decimal (and not Octal ! )
+      ybase=$((10#${aammdd:0:4} ))
+      mbase=$((10#${aammdd:4:2} ))
+      dbase=$((10#${aammdd:6:2} ))
+      if [ $mbase = 12 ]; then
+        ynew=$(( ybase + 1 ))
+        mnew=1
+        dnew=31
+      else
+        ynew=$ybase
+        mnew=$(( mbase + 1 ))
+        case $mnew in
+        (1|3|5|7|8|10|12 )
+           dnew=31 ;;
+        (4|6|9|11 )
+          dnew=30 ;;
+        (2 )
+          if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
+             if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
+               dnew=28
+             else
+               dnew=29
+             fi
+          else
+             dnew=28
+          fi ;;
+         esac
+       fi
+       dif=$(( $dnew * $nstep_per_day ))
+   fi
+   #  trick for semestrial segments
+   if [ $ndays -eq 181  -o $ndays -eq 182 -o $ndays -eq 184 ] && [ $semestrial = 1 ] ; then
+      ybase=$((10#${aammdd:0:4} ))
+      mbase=$((10#${aammdd:4:2} ))
+      dbase=$((10#${aammdd:6:2} ))
+
+      case $ndays in
+      ( 181 | 182 )  dnew=184 ;;
+      ( 184       )  ynew=$(( ybase + 1 ))
+          if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
+             if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
+               dnew=181
+             else
+               dnew=182
+             fi
+          else
+             dnew=181
+          fi ;;
+      esac
+      dif=$(( dnew * $nstep_per_day ))
+   fi
+
+
+echo $dnew $dif
 
     nit000=$(( $nitend + 1 ))
     nitend=$(( $nitend + $dif ))

@@ -127,6 +127,7 @@ CFC=0 ; C14=0 ; MYTRC=0
 #@@@@@@@@ FLXISH=0  ;  if [ $(keychk key_iceshelf) ] ; then FLXISH=1  ; fi   ===> ln_isf
 #@@@@@@@@ DIAOBS=0  ;  if [ $(keychk key_diaobs )  ] ; then DIAOBS=1  ; fi
 
+
 # 
 ## check if we are using new xml layout (ie with files like 04-files.xml
 NEWXML=0
@@ -175,11 +176,46 @@ sed -e "s/<NN_NO>/$no/" \
     -e "s@<CN_DIRICB>@$DDIR/${CN_DIRICB}.$no@"   \
     -e "s@<CN_DIRRST>@$DDIR/${CN_DIRRST}@"   namelist > znamelist1
 \cp znamelist1 namelist
+\cp namelist  namelist_ref
+\cp namelist  namelist_cfg
 
-if [ $DIAOBS = 1 ] ; then  # modify namelist block namobs (and get data files)
+# Use of the observation operator.
+DIAOBS=0
+ tmp=$(LookInNamelist ln_diaobs namelist_cfg namobs ) ; tmp=$(normalize $tmp)
+ if [ $tmp = T ] ; then DIAOBS=1 ; fi
+ echo "   ***  DIAOBS  = $DIAOBS"
+
+if [ $DIAOBS = 1 ] ; then
+    missing_err=0
+    # check if datfinyyyy and fbcomb are available
+    chkfile $P_UTL_DIR/bin/datfinyyyy
+    if [ $? = 0 ] ; then
+        rcopy $P_UTL_DIR/bin/datfinyyyy ./datfinyyyy
+    else
+        echo "   === ERROR : missing datfinyyyy with diaobs in use "
+        echo "       (Must be in $P_UTL_DIR/bin. Sources are in $RUN_TOOLS/UTILS )"
+        missing_err=$(( missing_err + 1 ))
+    fi
+
+#    chkfile $P_UTL_DIR/bin/fbcomb.exe
+#    if [ $? = 0 ] ; then
+#        rcopy $P_UTL_DIR/bin/fbcomb.exe ./fbcomb.exe
+#    else
+#        echo "   === ERROR : missing fbcomb with diaobs in use "
+#        echo "       (Must be in $P_UTL_DIR/bin. Sources are in TOOLS/OBSTOOLS ) "
+#        missing_err=$(( missing_err + 1 ))
+#    fi
+
+    if [ $missing_err != 0 ] ; then exit 1 ; fi
+
     # Observation operator
     ENACT=0  
     tmp=$(LookInNamelist ln_ena) ; tmp=$(normalize $tmp)
+    if [ $tmp = T ] ; then ENACT=1 ; fi
+# NEMO4 uses other flags 
+    tmp=$(LookInNamelist ln_t3d) ; tmp=$(normalize $tmp)
+    if [ $tmp = T ] ; then ENACT=1 ; fi
+    tmp=$(LookInNamelist ln_s3d) ; tmp=$(normalize $tmp)
     if [ $tmp = T ] ; then ENACT=1 ; fi
 
     SLA=0
@@ -191,8 +227,6 @@ if [ $DIAOBS = 1 ] ; then  # modify namelist block namobs (and get data files)
     getobs
 fi
 
-\cp namelist  namelist_ref
-\cp namelist  namelist_cfg
 
 ## Agrif namelist update if any
 if [ $AGRIF = 1 ] ; then
@@ -266,8 +300,8 @@ if [ $TOP = 1 ] ; then
     echo ' [2.2]  Tracer namelist(s)'
     echo " ========================="
     rcopy $P_CTL_DIR/namelist_top ./
-    sed -e "s@<CN_DIRRST>@$DDIR/${CN_DIRRST}@"   namelist_top > ztmp
-    mv ztmp namelist_top
+    sed -e "s@<CN_DIRRST>@$DDIR/${CN_DIRRST}@"   namelist_top > ztmpnmtop
+    mv ztmpnmtop namelist_top
     cp namelist_top namelist_top_ref
     cp namelist_top namelist_top_cfg
     if [ $CFC = 1    ] ; then rapatrie $CFCATM $P_I_DIR $F_DTA_DIR $NEMO_CFCATM ; fi
@@ -282,8 +316,8 @@ if [ $ICE != 0 ] ; then
     echo ' [2.3]  Ice namelist'
     echo " ========================="
     rcopy $P_CTL_DIR/namelist_ice.${CONFIG_CASE} namelist_ice
-    sed -e "s@<CN_DIRRST>@$DDIR/${CN_DIRRST}@"   namelist_ice > ztmp
-    mv ztmp namelist_ice
+    sed -e "s@<CN_DIRRST>@$DDIR/${CN_DIRRST}@"   namelist_ice > ztmpnmice
+    mv ztmpnmice namelist_ice
     cp namelist_ice namelist_ice_ref
     cp namelist_ice namelist_ice_cfg
     if [ $AGRIF = 1 ] ; then
@@ -506,36 +540,6 @@ fi
 echo "   ***  STO  = $STO"
 echo "   ***  RSTO = $RSTO"
 
-# Use of the observation operator.
-DIAOBS=0
- tmp=$(LookInNamelist ln_diaobs namelist_cfg namobs ) ; tmp=$(normalize $tmp)
- if [ $tmp = T ] ; then DIAOBS=1 ; fi
- echo "   *** DIAOBS  = $DIAOBS"
-
-if [ $DIAOBS = 1 ] ; then
-    missing_err=0
-    # check if datfinyyyy and fbcomb are available
-    chkfile $P_UTL_DIR/bin/datfinyyyy
-    if [ $? = 0 ] ; then
-        rcopy $P_UTL_DIR/bin/datfinyyyy ./datfinyyyy
-    else
-        echo "   === ERROR : missing datfinyyyy with diaobs in use "
-        echo "       (Must be in $P_UTL_DIR/bin. Sources are in $RUN_TOOLS/UTILS )"
-        missing_err=$(( missing_err + 1 ))
-    fi
-
-    chkfile $P_UTL_DIR/bin/fbcomb.exe
-    if [ $? = 0 ] ; then
-        rcopy $P_UTL_DIR/bin/fbcomb.exe ./fbcomb.exe
-    else
-        echo "   === ERROR : missing fbcomb with diaobs in use "
-        echo "       (Must be in $P_UTL_DIR/bin. Sources are in TOOLS/OBSTOOLS ) "
-        missing_err=$(( missing_err + 1 ))
-    fi
-
-    if [ $missing_err != 0 ] ; then exit 1 ; fi
-
-fi
 
 
 if [ $XIOS = 1 ] ; then
@@ -618,16 +622,48 @@ eof
     cat $xml_fil | sed -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS.$no@"  \
         -e "s@<MOORDIR>@$DDIR/${CONFIG_CASE}-MOORINGS.$no@" \
         -e "s/<CONFIG>/$CONFIG/" -e "s/<CASE>/$CASE/" \
-        -e "s/<NDATE0>/$ndate0/" > ztmp
-    mv ztmp $xml_fil
+        -e "s/<NDATE0>/$ndate0/" > ztmpxml
+    mv ztmpxml $xml_fil
    done
 #    if [ $XIOS2 = 1 ] ; then
 #       cat file_def.xml | sed -e "s@<OUTDIR>@$DDIR/${CONFIG_CASE}-XIOS.$no@"  \
 #        -e "s@<MOORDIR>@$DDIR/${CONFIG_CASE}-MOORINGS.$no@" \
 #        -e "s/<CONFIG>/$CONFIG/" -e "s/<CASE>/$CASE/" \
-#        -e "s/<NDATE0>/$ndate0/" > ztmp
-#       mv ztmp file_def.xml
+#        -e "s/<NDATE0>/$ndate0/" > ztmpxml2
+#       mv ztmpxml2 file_def.xml
 #    fi
+# Check for specific iom_put 
+   STERIC=0
+   xmldef=file_def_nemo-oce.xml
+   # look for specific field_ref in file_def xml file
+   grep -q -w 'field field_ref="sshthst"' $xmldef
+   if [ $? = 0 ] ; then
+   # look for comment
+     com=$( grep -w 'field field_ref="sshthst"' $xmldef | awk '{print $1}' )
+     # if many lines in file_def with requested field, com will have many words. Check first..;
+     com=$( echo $com | awk '{print $1}' )
+     if [ $com = '<!--' ] ; then
+       STERIC=0
+     else
+       # look for enabled= syntax
+       grep  -w 'field field_ref="sshthst"' $xmldef  | grep enabled
+       if [ $? != 0 ] ; then
+         STERIC=1
+       else
+         grep  -w 'field field_ref="sshthst"' $xmldef  | grep true
+         if [ $? = 0 ] ; then
+           STERIC=1
+         else
+           STERIC=0
+         fi
+       fi
+     fi
+  else
+     STERIC=0
+  fi
+  echo "   *** STERIC = " $STERIC
+
+
 
 fi
 #--------------------------------------
@@ -676,6 +712,11 @@ fi
 ## iceshelve fluxes and/or circulation
 if [ $ISF = 1 ] ; then
     getisf
+fi
+
+## TS climatology for STERIC SSH 
+if [ $STERIC = 1 ] ; then
+    getsteric
 fi
 
 ## diaobs : for memory : needed files are already copied (when updating namelist)

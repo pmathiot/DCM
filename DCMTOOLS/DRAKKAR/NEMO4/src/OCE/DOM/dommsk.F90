@@ -49,7 +49,7 @@ MODULE dommsk
 #  include "vectopt_loop_substitute.h90"
    !!----------------------------------------------------------------------
    !! NEMO/OCE 4.0 , NEMO Consortium (2018)
-   !! $Id: dommsk.F90 10425 2018-12-19 21:54:16Z smasson $ 
+   !! $Id: dommsk.F90 13270 2020-07-08 14:41:20Z clem $ 
    !! Software governed by the CeCILL license (see ./LICENSE)
    !!----------------------------------------------------------------------
 CONTAINS
@@ -94,7 +94,6 @@ CONTAINS
       INTEGER  ::   ijf, ijl       !   -       -
       INTEGER  ::   iktop, ikbot   !   -       -
       INTEGER  ::   ios, inum
-      REAL(wp), ALLOCATABLE, DIMENSION(:,:) ::   zwf   ! 2D workspace
       !!
       NAMELIST/namlbc/ rn_shlat, ln_vorlat
       NAMELIST/nambdy/ ln_bdy ,nb_bdy, ln_coords_file, cn_coords_file,         &
@@ -274,39 +273,35 @@ CONTAINS
       ! ---------------------------------------  
       IF( rn_shlat /= 0 ) THEN      ! Not free-slip lateral boundary condition
          !
-         ALLOCATE( zwf(jpi,jpj) )
-         !
          DO jk = 1, jpk
-            zwf(:,:) = fmask(:,:,jk)         
-
 #if defined key_drakkar
             IF (  ln_shlat2d ) THEN   ! use 2D shlat
                DO jj = 2, jpjm1
                   DO ji = fs_2, fs_jpim1   ! vector opt.
-                     IF( fmask(ji,jj,jk) == 0. ) THEN
-                        fmask(ji,jj,jk) = zshlat2d(ji,jj) * MIN( 1._wp, MAX( zwf(ji+1,jj), zwf(ji,jj+1),   &
-                           &                                              zwf(ji-1,jj), zwf(ji,jj-1)  )  )
+                     IF( fmask(ji,jj,jk) == 0._wp ) THEN
+                        fmask(ji,jj,jk) = zshlat2d(ji,jj) * MIN( 1._wp , MAX( umask(ji,jj,jk), umask(ji,jj+1,jk), &
+                           &                                           vmask(ji,jj,jk), vmask(ji+1,jj,jk) ) )
                      ENDIF
                   END DO
                END DO
                DO jj = 2, jpjm1
                   IF( fmask(1,jj,jk) == 0._wp ) THEN
                      zshlat = zshlat2d(1,jj)
-                     fmask(1  ,jj,jk) = zshlat * MIN( 1._wp , MAX( zwf(2,jj), zwf(1,jj+1), zwf(1,jj-1) ) )
+                     fmask(1  ,jj,jk) = zshlat * MIN( 1._wp , MAX( vmask(2,jj,jk), umask(1,jj+1,jk), umask(1,jj,jk) ) )
                   ENDIF
                   IF( fmask(jpi,jj,jk) == 0._wp ) THEN
                      zshlat = zshlat2d(jpi,jj)
-                     fmask(jpi,jj,jk) = zshlat * MIN( 1._wp , MAX( zwf(jpi,jj+1), zwf(jpim1,jj), zwf(jpi,jj-1) ) )
+                     fmask(jpi,jj,jk) = zshlat * MIN( 1._wp , MAX( umask(jpi,jj+1,jk), vmask(jpim1,jj,jk), umask(jpi,jj-1,jk) ) )
                   ENDIF
                END DO
                DO ji = 2, jpim1
                   IF( fmask(ji,1,jk) == 0._wp ) THEN
                      zshlat = zshlat2d(ji,1)
-                     fmask(ji, 1 ,jk) = zshlat * MIN( 1._wp , MAX( zwf(ji+1,1), zwf(ji,2), zwf(ji-1,1) ) )
+                     fmask(ji, 1 ,jk) = zshlat * MIN( 1._wp , MAX( vmask(ji+1,1,jk), umask(ji,2,jk), vmask(ji,1,jk) ) )
                   ENDIF
                   IF( fmask(ji,jpj,jk) == 0._wp ) THEN
                      zshlat = zshlat2d(ji,jpj)
-                     fmask(ji,jpj,jk) = zshlat * MIN( 1._wp , MAX( zwf(ji+1,jpj), zwf(ji-1,jpj), zwf(ji,jpjm1) ) )
+                     fmask(ji,jpj,jk) = zshlat * MIN( 1._wp , MAX( vmask(ji+1,jpj,jk), vmask(ji-1,jpj,jk), umask(ji,jpjm1,jk) ) )
                   ENDIF
                END DO
             ELSE
@@ -314,25 +309,25 @@ CONTAINS
             DO jj = 2, jpjm1
                DO ji = fs_2, fs_jpim1   ! vector opt.
                   IF( fmask(ji,jj,jk) == 0._wp ) THEN
-                     fmask(ji,jj,jk) = rn_shlat * MIN( 1._wp , MAX( zwf(ji+1,jj), zwf(ji,jj+1),   &
-                        &                                           zwf(ji-1,jj), zwf(ji,jj-1)  )  )
+                     fmask(ji,jj,jk) = rn_shlat * MIN( 1._wp , MAX( umask(ji,jj,jk), umask(ji,jj+1,jk), &
+                        &                                           vmask(ji,jj,jk), vmask(ji+1,jj,jk) ) )
                   ENDIF
                END DO
             END DO
             DO jj = 2, jpjm1
                IF( fmask(1,jj,jk) == 0._wp ) THEN
-                  fmask(1  ,jj,jk) = rn_shlat * MIN( 1._wp , MAX( zwf(2,jj), zwf(1,jj+1), zwf(1,jj-1) ) )
+                  fmask(1  ,jj,jk) = rn_shlat * MIN( 1._wp , MAX( vmask(2,jj,jk), umask(1,jj+1,jk), umask(1,jj,jk) ) )
                ENDIF
                IF( fmask(jpi,jj,jk) == 0._wp ) THEN
-                  fmask(jpi,jj,jk) = rn_shlat * MIN( 1._wp , MAX( zwf(jpi,jj+1), zwf(jpim1,jj), zwf(jpi,jj-1) ) )
+                  fmask(jpi,jj,jk) = rn_shlat * MIN( 1._wp , MAX( umask(jpi,jj+1,jk), vmask(jpim1,jj,jk), umask(jpi,jj-1,jk) ) )
                ENDIF
             END DO         
             DO ji = 2, jpim1
                IF( fmask(ji,1,jk) == 0._wp ) THEN
-                  fmask(ji, 1 ,jk) = rn_shlat * MIN( 1._wp , MAX( zwf(ji+1,1), zwf(ji,2), zwf(ji-1,1) ) )
+                  fmask(ji, 1 ,jk) = rn_shlat * MIN( 1._wp , MAX( vmask(ji+1,1,jk), umask(ji,2,jk), vmask(ji,1,jk) ) )
                ENDIF
                IF( fmask(ji,jpj,jk) == 0._wp ) THEN
-                  fmask(ji,jpj,jk) = rn_shlat * MIN( 1._wp , MAX( zwf(ji+1,jpj), zwf(ji-1,jpj), zwf(ji,jpjm1) ) )
+                  fmask(ji,jpj,jk) = rn_shlat * MIN( 1._wp , MAX( vmask(ji+1,jpj,jk), vmask(ji-1,jpj,jk), umask(ji,jpjm1,jk) ) )
                ENDIF
             END DO
 #if defined key_drakkar
@@ -346,7 +341,6 @@ CONTAINS
             ENDIF 
          END DO
          !
-         DEALLOCATE( zwf )
 #if defined key_drakkar
          IF ( ln_shlat2d ) THEN
            DEALLOCATE (zshlat2d)

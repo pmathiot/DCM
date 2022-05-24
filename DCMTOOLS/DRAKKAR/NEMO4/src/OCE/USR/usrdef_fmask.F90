@@ -29,7 +29,7 @@ MODULE usrdef_fmask
 #  include "vectopt_loop_substitute.h90"
    !!----------------------------------------------------------------------
    !! NEMO/OCE 4.0 , NEMO Consortium (2018)
-   !! $Id: usrdef_fmask.F90 10425 2018-12-19 21:54:16Z smasson $ 
+   !! $Id: usrdef_fmask.F90 13436 2020-08-25 15:11:29Z acc $ 
    !! Software governed by the CeCILL license (see ./LICENSE)
    !!----------------------------------------------------------------------
 CONTAINS
@@ -59,7 +59,7 @@ CONTAINS
       INTEGER  ::   isrow                    ! index for ORCA1 starting row
       !!----------------------------------------------------------------------
       !
-      IF( TRIM( cd_cfg ) == "orca" ) THEN      !==  ORCA Configurations  ==!
+      IF( TRIM( cd_cfg ) == "orca" .OR. TRIM( cd_cfg ) == "ORCA" ) THEN      !==  ORCA Configurations  ==!
          !
          SELECT CASE ( kcfg )
          !
@@ -137,8 +137,8 @@ CONTAINS
             IF(lwp) WRITE(numout,*) 'usr_def_fmask : ORCA025: increase lateral friction near the following straits:'
             IF(lwp) WRITE(numout,*) '~~~~~~~~~~~~~'   
             IF(lwp) WRITE(numout,*) '       Gibraltar Strait : 3'
-            ii0 = 652           ;   ii1 = 654        ! Torres Strait
-            ij0 =1125           ;   ij1 =1127           ;   pfmsk(mi0(ii0):mi1(ii1),mj0(ij0):mj1(ij1),1:jpk) =  3._wp
+            ii0 =1125           ;   ii1 =1127        ! Gibraltar
+            ij0 = 652           ;   ij1 = 654           ;   pfmsk(mi0(ii0):mi1(ii1),mj0(ij0):mj1(ij1),1:jpk) =  3._wp
             IF(lwp) WRITE(numout,*) '       East Ombai Strait : 2 '
             ii0 = 212           ;   ii1 = 212        ! East of Ombai strait
             ij0 = 464           ;   ij1 = 465           ;   pfmsk(mi0(ii0):mi1(ii1),mj0(ij0):mj1(ij1),1:jpk) =  2._wp
