@@ -87,7 +87,7 @@ CONTAINS
       DO_2D( 1, 1, 1, 1 )
             imx = berg_grid%maxclass(ji,jj)
             zb = SUM( rn_distribution(1:imx) )
-            zdist = za / zb 
+            zdist = za / zb
             DO jn = 1, imx
                berg_grid%stored_ice(ji,jj,jn) = berg_grid%stored_ice(ji,jj,jn)     &
                   &                           + berg_dt * berg_grid%calving(ji,jj) * rn_distribution(jn) * zdist
@@ -181,6 +181,7 @@ CONTAINS
                   icnt = icnt + 1
                   !
                   CALL icb_dia_calve(ji, jj, jn,  zcalved_to_berg, zheat_to_berg )
+                  !
                END DO
                icntmax = MAX( icntmax, icnt )
             END DO

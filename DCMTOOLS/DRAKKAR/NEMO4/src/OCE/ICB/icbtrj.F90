@@ -64,8 +64,9 @@ CONTAINS
       INTEGER                ::   idg  ! number of digits
       REAL(wp)               ::   zfjulday, zsec
       CHARACTER(len=80)      ::   cl_filename
-      CHARACTER(LEN=12)      ::   clfmt            ! writing format
       CHARACTER(LEN=8 )      ::   cldate_ini, cldate_end
+      CHARACTER(LEN=12)      ::   clfmt            ! writing format
+      CHARACTER(lc)          ::   cl_no
       TYPE(iceberg), POINTER ::   this
       TYPE(point)  , POINTER ::   pt
       !!----------------------------------------------------------------------
@@ -81,7 +82,12 @@ CONTAINS
       WRITE(cldate_end, '(i4.4,2i2.2)') iyear, imonth, iday
 
       ! define trajectory output name
+#if defined key_drakkar
+      WRITE(cl_no,*) nn_no ; cl_no = TRIM(ADJUSTL(cl_no) )
+      cl_filename = 'trajectory_icebergs_'//cl_no
+#else
       cl_filename = 'trajectory_icebergs_'//cldate_ini//'-'//cldate_end
+#endif
       IF ( lk_mpp ) THEN
          idg = MAX( INT(LOG10(REAL(MAX(1,jpnij-1),wp))) + 1, 4 )          ! how many digits to we need to write? min=4, max=9
          WRITE(clfmt, "('(a,a,i', i1, '.', i1, ',a)')") idg, idg          ! '(a,a,ix.x,a)'

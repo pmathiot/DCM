@@ -22,7 +22,11 @@ MODULE isfstp
    USE dom_oce        ! ocean space and time domain
    USE oce      , ONLY: ssh                           ! sea surface height
    USE domvvl,  ONLY: ln_vvl_zstar                      ! zstar logical
+#if defined key_tipaccs
+   USE zdfdrg,  ONLY: r_Cdmin_top, rke0_top, ln_2d_ttv  ! vertical physics: top/bottom drag coef.
+#else
    USE zdfdrg,  ONLY: r_Cdmin_top, r_ke0_top            ! vertical physics: top/bottom drag coef.
+#endif
    !
    USE lib_mpp, ONLY: ctl_stop, ctl_nam
    USE fldread, ONLY: FLD, FLD_N
@@ -209,7 +213,15 @@ CONTAINS
                IF ( TRIM(cn_gammablk) .NE. 'spe' ) THEN 
                   WRITE(numout,*) '         gammat coefficient                       rn_gammat0   = ', rn_gammat0  
                   WRITE(numout,*) '         gammas coefficient                       rn_gammas0   = ', rn_gammas0  
+#if defined key_tipaccs
+                  IF (ln_2d_ttv) THEN
+                     WRITE(numout,*) '         top background ke used (from namdrg_top_tippacs) read from 2d file (see zdfdrg bloc)'
+                  ELSE
+                     WRITE(numout,*) '         top background ke used (from namdrg_top) rn_ke0       = ', MAXVAL(rke0_top)
+                  ENDIF
+#else
                   WRITE(numout,*) '         top background ke used (from namdrg_top) rn_ke0       = ', r_ke0_top
+#endif
                   WRITE(numout,*) '         top drag coef.    used (from namdrg_top) rn_Cd0       = ', r_Cdmin_top
                END IF
             END IF

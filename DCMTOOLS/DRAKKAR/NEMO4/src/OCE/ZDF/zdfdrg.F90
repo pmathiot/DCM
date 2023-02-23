@@ -50,6 +50,9 @@ MODULE zdfdrg
    LOGICAL          ::   ln_loglayer  ! logarithmic drag: Cd = vkarmn/log(z/z0)
    LOGICAL , PUBLIC ::   ln_drgimp    ! implicit top/bottom friction flag
    LOGICAL , PUBLIC ::   ln_drgice_imp ! implicit ice-ocean drag 
+#if defined key_tipaccs
+   LOGICAL , PUBLIC ::   ln_2d_ttv    ! top tidal velocity
+#endif
    !                                 !!* Namelist namdrg_top & _bot: TOP or BOTTOM coefficient namelist *
    REAL(wp)         ::   rn_Cd0       !: drag coefficient                                           [ - ]
    REAL(wp)         ::   rn_Uc0       !: characteristic velocity (linear case: tau=rho*Cd0*Uc0*u)   [m/s]
@@ -59,8 +62,13 @@ MODULE zdfdrg
    LOGICAL          ::   ln_boost     !: =T regional boost of Cd0 ; =F Cd0 horizontally uniform
    REAL(wp)         ::   rn_boost     !: local boost factor                                         [ - ]
 
+#if defined key_tipaccs
+   REAL(wp), PUBLIC ::   r_Cdmin_top, r_Cdmax_top, r_z0_top              ! set from namdrg_top namelist values
+   REAL(wp), PUBLIC ::   r_Cdmin_bot, r_Cdmax_bot, r_z0_bot              !  -    -  namdrg_bot    -       -
+#else
    REAL(wp), PUBLIC ::   r_Cdmin_top, r_Cdmax_top, r_z0_top, r_ke0_top   ! set from namdrg_top namelist values
    REAL(wp), PUBLIC ::   r_Cdmin_bot, r_Cdmax_bot, r_z0_bot, r_ke0_bot   !  -    -  namdrg_bot    -       -
+#endif
 
    INTEGER ::              ndrg       ! choice of the type of drag coefficient
    !                                  ! associated indices:
@@ -72,6 +80,9 @@ MODULE zdfdrg
    LOGICAL , PUBLIC ::   l_zdfdrg           !: flag to update at each time step the top/bottom Cd
    LOGICAL          ::   l_log_not_linssh   !: flag to update at each time step the position ot the velocity point 
    !
+#if defined key_tipaccs
+   REAL(wp), ALLOCATABLE, SAVE, DIMENSION(:,:), PUBLIC ::   rke0_top, rke0_bot   !: precomputed top/bottom tidal velocity
+#endif
    REAL(wp), ALLOCATABLE, SAVE, DIMENSION(:,:), PUBLIC ::   rCd0_top, rCd0_bot   !: precomputed top/bottom drag coeff. at t-point (>0)
    REAL(wp), ALLOCATABLE, SAVE, DIMENSION(:,:), PUBLIC ::   rCdU_top, rCdU_bot   !: top/bottom drag coeff. at t-point (<0)  [m/s]
 
@@ -109,7 +120,11 @@ CONTAINS
       REAL(wp)                , INTENT(in   ) ::   pCdmin   ! min drag value
       REAL(wp)                , INTENT(in   ) ::   pCdmax   ! max drag value
       REAL(wp)                , INTENT(in   ) ::   pz0      ! roughness
+#if defined key_tipaccs
+      REAL(wp), DIMENSION(:,:), INTENT(in   ) ::   pke0     ! background tidal KE
+#else
       REAL(wp)                , INTENT(in   ) ::   pke0     ! background tidal KE
+#endif
       REAL(wp), DIMENSION(:,:), INTENT(in   ) ::   pCd0     ! masked precomputed part of Cd0
       REAL(wp), DIMENSION(:,:), INTENT(  out) ::   pCdU     ! = - Cd*|U|   (t-points) [m/s]
       !!
@@ -128,7 +143,11 @@ CONTAINS
 !!JC: possible WAD implementation should modify line below if layers vanish
             zcd = (  vkarmn / LOG( zzz / pz0 )  )**2
             zcd = pCd0(ji,jj) * MIN(  MAX( pCdmin , zcd ) , pCdmax  )   ! here pCd0 = mask*boost
+#if defined key_tipaccs
+            pCdU(ji,jj) = - zcd * SQRT(  0.25 * ( zut*zut + zvt*zvt ) + pke0(ji,jj)  )
+#else
             pCdU(ji,jj) = - zcd * SQRT(  0.25 * ( zut*zut + zvt*zvt ) + pke0  )
+#endif
          END_2D
       ELSE                                            !==  standard Cd  ==!
          DO_2D_OVR( nn_hls-1, nn_hls-1, nn_hls-1, nn_hls-1 )
@@ -136,7 +155,11 @@ CONTAINS
             zut = uu(ji,jj,imk,Kmm) + uu(ji-1,jj,imk,Kmm)     ! 2 x velocity at t-point
             zvt = vv(ji,jj,imk,Kmm) + vv(ji,jj-1,imk,Kmm)
             !                                                           ! here pCd0 = mask*boost * drag
+#if defined key_tipaccs
+            pCdU(ji,jj) = - pCd0(ji,jj) * SQRT(  0.25 * ( zut*zut + zvt*zvt ) + pke0(ji,jj)  )
+#else
             pCdU(ji,jj) = - pCd0(ji,jj) * SQRT(  0.25 * ( zut*zut + zvt*zvt ) + pke0  )
+#endif
          END_2D
       ENDIF
       !
@@ -269,8 +292,14 @@ CONTAINS
       !                     !==  BOTTOM drag setting  ==!   (applied at seafloor)
       !
       ALLOCATE( rCd0_bot(jpi,jpj), rCdU_bot(jpi,jpj) )
+#if defined key_tipaccs
+      ALLOCATE( rke0_bot(jpi,jpj) )
+      CALL drg_init( 'BOTTOM'   , mbkt       ,                                         &   ! <== in
+         &           r_Cdmin_bot, r_Cdmax_bot, r_z0_bot, rke0_bot, rCd0_bot, rCdU_bot )   ! ==> out
+#else
       CALL drg_init( 'BOTTOM'   , mbkt       ,                                         &   ! <== in
          &           r_Cdmin_bot, r_Cdmax_bot, r_z0_bot, r_ke0_bot, rCd0_bot, rCdU_bot )   ! ==> out
+#endif
       !
       !                     !==  TOP drag setting  ==!   (applied at the top of ocean cavities)
       !
@@ -280,8 +309,14 @@ CONTAINS
       !
       IF( ln_isfcav ) THEN
          ALLOCATE( rCd0_top(jpi,jpj))
+#if defined key_tipaccs
+         ALLOCATE( rke0_top(jpi,jpj) )
+         CALL drg_init( 'TOP   '   , mikt       ,                                         &   ! <== in
+            &           r_Cdmin_top, r_Cdmax_top, r_z0_top, rke0_top, rCd0_top, rCdU_top )   ! ==> out
+#else
          CALL drg_init( 'TOP   '   , mikt       ,                                         &   ! <== in
             &           r_Cdmin_top, r_Cdmax_top, r_z0_top, r_ke0_top, rCd0_top, rCdU_top )   ! ==> out
+#endif
       ENDIF
       !
    END SUBROUTINE zdf_drg_init
@@ -299,7 +334,11 @@ CONTAINS
       INTEGER , DIMENSION(:,:), INTENT(in   ) ::   k_mk            ! 1st/last  wet level 
       REAL(wp)                , INTENT(  out) ::   pCdmin, pCdmax  ! min and max drag coef. [-]
       REAL(wp)                , INTENT(  out) ::   pz0             ! roughness              [m]
+#if defined key_tipaccs
+      REAL(wp), DIMENSION(:,:), INTENT(  out) ::   pke0            ! background KE          [m2/s2]
+#else
       REAL(wp)                , INTENT(  out) ::   pke0            ! background KE          [m2/s2]
+#endif
       REAL(wp), DIMENSION(:,:), INTENT(  out) ::   pCd0            ! masked precomputed part of the non-linear drag coefficient
       REAL(wp), DIMENSION(:,:), INTENT(  out) ::   pCdU            ! minus linear drag*|U| at t-points  [m/s]
       !!
@@ -312,6 +351,14 @@ CONTAINS
       !!
       NAMELIST/namdrg_top/ rn_Cd0, rn_Uc0, rn_Cdmax, rn_ke0, rn_z0, ln_boost, rn_boost
       NAMELIST/namdrg_bot/ rn_Cd0, rn_Uc0, rn_Cdmax, rn_ke0, rn_z0, ln_boost, rn_boost
+
+#if defined key_tipaccs
+      CHARACTER(len=255) :: cn_dirttv
+      TYPE(FLD_N)        :: sn_ttv
+      REAL(wp)           :: rn_ttv_sf, rn_ttv_os
+      NAMELIST/namdrg_top_tipaccs/ ln_2d_ttv, rn_ttv_sf, rn_ttv_os, cn_dirttv, sn_ttv
+#endif
+
 #if defined key_drakkar 
       CHARACTER(len=255) :: cn_dir
       TYPE(FLD_N)        :: sn_boost
@@ -354,6 +401,15 @@ CONTAINS
       IF(lwm .AND. ll_top)   WRITE ( numond, namdrg_top )
       IF(lwm .AND. ll_bot)   WRITE ( numond, namdrg_bot )
 
+#if defined key_tipaccs
+      IF (ll_top) THEN
+         READ (numnam_ref, namdrg_top_tipaccs, IOSTAT = ios, ERR = 905)
+905      IF( ios /= 0 )   CALL ctl_nam( ios , TRIM(cl_namref)//'_tipaccs' )
+         READ (numnam_cfg, namdrg_top_tipaccs, IOSTAT = ios, ERR = 905)
+906      IF( ios /= 0 )   CALL ctl_nam( ios , TRIM(cl_namcfg)//'_tipaccs' )
+      ENDIF
+#endif
+
 #if defined key_drakkar
       IF( ln_boost ) THEN
          IF (ll_top)  READ (numnam_ref,namdrg_top_drk, IOSTAT = ios, ERR = 903)
@@ -373,7 +429,18 @@ CONTAINS
          WRITE(numout,*) '      drag coefficient                        rn_Cd0   = ', rn_Cd0
          WRITE(numout,*) '      characteristic velocity (linear case)   rn_Uc0   = ', rn_Uc0, ' m/s'
          WRITE(numout,*) '      non-linear drag maximum                 rn_Cdmax = ', rn_Cdmax
+#if defined key_tipaccs
+         IF (ll_top) WRITE(numout,*) '      use 2d top tidal velocity               ln_2d_ttv= ', ln_2d_ttv
+         IF (ln_2d_ttv .AND. ll_top) THEN
+            WRITE(numout,*) '      2d top tital velocity read from file    sn_ttv   = ',TRIM(sn_ttv%clname)
+            WRITE(numout,*) '      scale factor applied to ttv             rn_ttv_sf= ', rn_ttv_sf
+            WRITE(numout,*) '      offset       applied to ttv             rn_ttv_os= ', rn_ttv_os
+         ELSE
+            WRITE(numout,*) '      background kinetic energy  (n-l case)   rn_ke0   = ', rn_ke0
+         ENDIF
+#else
          WRITE(numout,*) '      background kinetic energy  (n-l case)   rn_ke0   = ', rn_ke0
+#endif
          WRITE(numout,*) '      bottom roughness           (n-l case)   rn_z0    = ', rn_z0
          WRITE(numout,*) '      set a regional boost of Cd0             ln_boost = ', ln_boost
          WRITE(numout,*) '         associated boost factor              rn_boost = ', rn_boost
@@ -385,6 +452,22 @@ CONTAINS
       pz0    = rn_z0
       pke0   = rn_ke0
       !
+#if defined key_tipaccs
+      IF (ln_2d_ttv .AND. ll_top) THEN
+         IF(lwp) WRITE(numout,*)
+         IF(lwp) WRITE(numout,*) '   ==>>>   use a 2d top tidal velocity read in ',TRIM(sn_ttv%clname), ' file'
+         ! 2d top tidal velocity
+         CALL iom_open ( TRIM(sn_ttv%clname), inum )
+         CALL iom_get  ( inum, jpdom_global, TRIM(sn_ttv%clvar), pke0, 1 )
+         CALL iom_close( inum)
+         ! 
+         ! Eq 9c Jourdain et al. (2019)
+         ! input file is a velocity, NEMO need a square velocity
+         pke0 = pke0 * rn_ttv_sf + rn_ttv_os
+         pke0 = pke0 * pke0
+         !
+      ENDIF
+#endif
       !                          !==  mask * boost factor  ==!
       !
       IF( ln_boost ) THEN           !* regional boost:   boost factor = 1 + regional boost
@@ -430,7 +513,15 @@ CONTAINS
          IF(lwp) WRITE(numout,*)
          IF(lwp) WRITE(numout,*) '   ==>>>   quadratic ',TRIM(cd_topbot),' friction (propotional to module of the velocity)'
          IF(lwp) WRITE(numout,*) '   with    a drag coefficient Cd0 = ', rn_Cd0, ', and'
+#if defined key_tipaccs
+         IF (ln_2d_ttv .AND. ll_top) THEN
+            IF(lwp) WRITE(numout,*) '           a 2d top tidal velocity from',TRIM(sn_ttv%clname)
+         ELSE
+            IF(lwp) WRITE(numout,*) '           a background velocity module of (rn_ke0)^1/2 = ', SQRT(rn_ke0), 'm/s)'
+         END IF
+#else
          IF(lwp) WRITE(numout,*) '           a background velocity module of (rn_ke0)^1/2 = ', SQRT(rn_ke0), 'm/s)'
+#endif
          !
          l_zdfdrg = .TRUE.          !* Cd*|U| updated at each time-step (it depends on ocean velocity)
          !
@@ -441,7 +532,15 @@ CONTAINS
          IF(lwp) WRITE(numout,*)
          IF(lwp) WRITE(numout,*) '   ==>>>   quadratic ',TRIM(cd_topbot),' drag (propotional to module of the velocity)'
          IF(lwp) WRITE(numout,*) '   with   a logarithmic Cd0 formulation Cd0 = ( vkarman log(z/z0) )^2 ,'
+#if defined key_tipaccs
+         IF (ln_2d_ttv .AND. ll_top) THEN
+            IF(lwp) WRITE(numout,*) '           a 2d top tidal velocity from',TRIM(sn_ttv%clname)
+         ELSE
+            IF(lwp) WRITE(numout,*) '           a background velocity module of (rn_ke0)^1/2 = ', SQRT(rn_ke0), 'm/s)'
+         END IF
+#else
          IF(lwp) WRITE(numout,*) '          a background velocity module of (rn_ke0)^1/2 = ', SQRT(pke0), 'm/s), '
+#endif
          IF(lwp) WRITE(numout,*) '          a logarithmic formulation: a roughness of ', pz0, ' meters,   and '
          IF(lwp) WRITE(numout,*) '          a proportionality factor bounded by min/max values of ', pCdmin, pCdmax
          !

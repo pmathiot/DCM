@@ -48,7 +48,7 @@ MODULE modncfile
 
   CHARACTER(LEN=80) :: cf_in                              ! input file name
   CHARACTER(LEN=80) :: cf_root                            ! root input file name (for merge)
-  CHARACTER(LEN=80) :: cf_coor                            ! coordinate file name if used (for merge)
+  CHARACTER(LEN=255) :: cf_coor                            ! coordinate file name if used (for merge)
   CHARACTER(LEN=255) :: c_dirout='./'                     ! output directory
 
   CHARACTER(LEN=80), DIMENSION(:), ALLOCATABLE :: cf_list ! list of input <file*>_0000.nc
@@ -58,7 +58,7 @@ MODULE modncfile
   LOGICAL           :: lg_rename     = .FALSE. ! flag for renaming the output file to drakkar standards
   LOGICAL           :: lg_agrif      = .FALSE. ! flag for telling the prog that files are produced with agrif
   LOGICAL           :: lg_nc3        = .FALSE. ! flag for creating netcdf3 files instead of netcdf4
-  LOGICAL           :: lg_verbose    = .FALSE. ! flag for increased verbosity
+  LOGICAL           :: lg_verbose    = .TRUE.  ! flag for increased verbosity
   LOGICAL           :: lg_win        = .FALSE. ! flag for screening output.
   LOGICAL           :: lg_kmax       = .FALSE. ! flag for limiting the vertical levels on output
 

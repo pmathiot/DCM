@@ -57,6 +57,7 @@ MODULE sbcssr
    TYPE(FLD_N)     :: sn_coast
    REAL(wp), PUBLIC, ALLOCATABLE, DIMENSION(:,:) :: distcoast   ! use to read the distance and then for weight purpose
    REAL(wp)        :: rn_dist      ! (km) decaying lenght scale for SSS restoring near the coast
+   TYPE(FLD), ALLOCATABLE, DIMENSION(:) ::   sf_empc  ! structure of input SSS (file informations, fields read)
 #endif
 
    REAL(wp) , ALLOCATABLE, DIMENSION(:) ::   buffer   ! Temporary buffer for exchange
@@ -97,6 +98,7 @@ CONTAINS
 #if defined key_drakkar
       REAL(wp) , DIMENSION (jpi,jpj) :: zsss_m ! temporary array
       REAL(wp) , DIMENSION (jpi,jpj) :: zsst_m ! temporary array
+      TYPE(FLD_N) ::   sn_empc                 ! informations about the fields to be read
 #endif
       !!
       CHARACTER(len=100) ::  cn_dir          ! Root directory for location of ssr files
@@ -106,7 +108,11 @@ CONTAINS
       IF( nn_sstr + nn_sssr /= 0 ) THEN
          !
          IF( nn_sstr == 1)   CALL fld_read( kt, nn_fsbc, sf_sst )   ! Read SST data and provides it at kt
+#if defined key_drakkar
+         IF( nn_sssr <= 2)   CALL fld_read( kt, nn_fsbc, sf_sss )   ! Read SSS data and provides it at kt
+#else
          IF( nn_sssr >= 1)   CALL fld_read( kt, nn_fsbc, sf_sss )   ! Read SSS data and provides it at kt
+#endif
          !
          !                                         ! ========================= !
          IF( MOD( kt-1, nn_fsbc ) == 0 ) THEN      !    Add restoring term     !
@@ -123,7 +129,11 @@ CONTAINS
                END_2D
             ENDIF
             !
+#if defined key_drakkar
+            IF( nn_sssr /= 0 .AND. nn_sssr /= 3 .AND. nn_sssr_ice /= 1 ) THEN
+#else
             IF( nn_sssr /= 0 .AND. nn_sssr_ice /= 1 ) THEN
+#endif
               ! use fraction of ice ( fr_i ) to adjust relaxation under ice if nn_sssr_ice .ne. 1
               ! n.b. coefice is initialised and fixed to 1._wp if nn_sssr_ice = 1
                DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
@@ -190,6 +200,16 @@ CONTAINS
                   qrp(ji,jj) = qrp(ji,jj) - zerp * rcp * sst_m(ji,jj)
                END_2D
 #endif
+#if defined key_drakkar
+            ELSEIF ( nn_sssr == 3) THEN
+            CALL fld_read( kt, nn_fsbc, sf_empc )   ! Read SST data and provides it at kt
+            DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
+               erp(ji,jj) = sf_empc(1)%fnow(ji,jj,1)
+               emp(ji,jj) = emp(ji,jj) + erp(ji,jj)
+               qns(ji,jj) = qns(ji,jj) - erp(ji,jj) * rcp * sst_m(ji,jj)
+               qrp(ji,jj) = qrp(ji,jj) - erp(ji,jj) * rcp * sst_m(ji,jj)
+            END_2D
+#endif
             ENDIF
             ! outputs
             CALL iom_put( 'hflx_ssr_cea', qrp(:,:) )
@@ -222,7 +242,8 @@ CONTAINS
       INTEGER  ::   ii0, ii1, ii2, ij0, ij1, ij2, inum
       REAL(wp) :: zalph
       CHARACTER(LEN=100) ::  cl_coastfile
-      NAMELIST/namsbc_ssr_drk/ ln_sssr_flt, ln_sssr_msk, sn_coast, rn_dist, nn_shap_iter
+      TYPE(FLD_N) ::   sn_empc
+      NAMELIST/namsbc_ssr_drk/ ln_sssr_flt, ln_sssr_msk, sn_coast, rn_dist, nn_shap_iter, sn_empc
 #endif
       !!
       CHARACTER(len=100) ::  cn_dir          ! Root directory for location of ssr files
@@ -244,8 +265,8 @@ CONTAINS
       READ  ( numnam_cfg, namsbc_ssr, IOSTAT = ios, ERR = 902 )
 902   IF( ios >  0 )   CALL ctl_nam ( ios , 'namsbc_ssr in configuration namelist' )
       IF(lwm) WRITE ( numond, namsbc_ssr )
-#if defined key_drakkar
 
+#if defined key_drakkar
       READ  ( numnam_ref, namsbc_ssr_drk, IOSTAT = ios, ERR = 903)
 903   IF( ios /= 0 )   CALL ctl_nam ( ios , 'namsbc_ssr_drk in reference namelist' )
 
@@ -260,6 +281,9 @@ CONTAINS
          WRITE(numout,*) '         dQ/dT (restoring magnitude on SST)     rn_dqdt     = ', rn_dqdt, ' W/m2/K'
          WRITE(numout,*) '      SSS damping term (Yes=1, salt   flux)  nn_sssr        = ', nn_sssr
          WRITE(numout,*) '                       (Yes=2, volume flux) '
+#if defined key_drakkar
+         WRITE(numout,*) '                       (Yes=3, from input file and as volume flux) '
+#endif
          WRITE(numout,*) '         dE/dS (restoring magnitude on SST)     rn_deds     = ', rn_deds, ' mm/day'
          WRITE(numout,*) '         flag to bound erp term                 ln_sssr_bnd = ', ln_sssr_bnd
          WRITE(numout,*) '         ABS(Max./Min.) erp threshold           rn_sssr_bnd = ', rn_sssr_bnd, ' mm/day'
@@ -268,12 +292,18 @@ CONTAINS
          WRITE(numout,*) '          ( 1 = restoration everywhere  )'
          WRITE(numout,*) '          (>1 = enhanced restoration under ice  )'
 #if defined key_drakkar
-         WRITE(numout,*) '      Filtering of sss for restoring         ln_sssr_flt = ', ln_sssr_flt 
-         IF ( ln_sssr_flt ) THEN
-            WRITE(numout,*) '      Number of used Shapiro filter           nn_shap_iter = ', nn_shap_iter
-         ENDIF
-         WRITE(numout,*) '      Limit sss restoring near the coast     ln_sssr_msk = ', ln_sssr_msk
-         IF ( ln_sssr_msk ) WRITE(numout,*) '      Decaying lenght scale from the coast   rn_dist     = ', rn_dist, ' km'
+         IF ( nn_sssr == 3 ) THEN
+            WRITE(numout,*)
+            WRITE(numout,*) '      Read sssr term from a forcing (prescribed emp correction).'
+            WRITE(numout,*)
+         ELSE
+            WRITE(numout,*) '      Filtering of sss for restoring         ln_sssr_flt = ', ln_sssr_flt 
+            IF ( ln_sssr_flt ) THEN
+               WRITE(numout,*) '      Number of used Shapiro filter           nn_shap_iter = ', nn_shap_iter
+            ENDIF
+            WRITE(numout,*) '      Limit sss restoring near the coast     ln_sssr_msk = ', ln_sssr_msk
+            IF ( ln_sssr_msk ) WRITE(numout,*) '      Decaying lenght scale from the coast   rn_dist     = ', rn_dist, ' km'
+         END IF
 #endif
       ENDIF
       !
@@ -291,7 +321,11 @@ CONTAINS
          !
       ENDIF
       !
+#if defined key_drakkar
+      IF( nn_sssr >= 1 .AND. nn_sssr < 3) THEN
+#else
       IF( nn_sssr >= 1 ) THEN      !* set sf_sss structure & allocate arrays
+#endif
          !
          ALLOCATE( sf_sss(1), STAT=ierror )
          IF( ierror > 0 )   CALL ctl_stop( 'STOP', 'sbc_ssr: unable to allocate sf_sss structure' )
@@ -345,16 +379,27 @@ CONTAINS
 !           ENDDO
 !        ENDDO
 !     ENDIF
-
-
-
+      ELSEIF ( nn_sssr == 3 ) THEN
+         ALLOCATE( sf_empc(1), STAT=ierror )
+         IF( ierror > 0 )   CALL ctl_stop( 'STOP', 'sbc_ssr: unable to allocate sf_empc structure' )
+         ALLOCATE( sf_empc(1)%fnow(jpi,jpj,1), STAT=ierror )
+         IF( ierror > 0 )   CALL ctl_stop( 'STOP', 'sbc_ssr: unable to allocate sf_empc now array' )
+         !
+         ! fill sf_empc with sn_empc and control print
+         CALL fld_fill( sf_empc, (/ sn_empc /), cn_dir, 'sbc_ssr', 'SSS restoring term toward SSS data', 'namsbc_ssr', no_print )
+         IF( sf_empc(1)%ln_tint )   ALLOCATE( sf_empc(1)%fdta(jpi,jpj,1,2), STAT=ierror )
+         IF( ierror > 0 )   CALL ctl_stop( 'STOP', 'sbc_ssr: unable to allocate sf_empc data array' )
 #endif
       ENDIF
       !
       coefice(:,:) = 1._wp         !  Initialise coefice to 1._wp ; will not need to be changed if nn_sssr_ice=1
       !                            !* Initialize qrp and erp if no restoring 
       IF( nn_sstr /= 1                   )   qrp(:,:) = 0._wp
+#if defined key_drakkar
+      IF( nn_sssr > 0 ) erp(:,:) = 0._wp
+#else
       IF( nn_sssr /= 1 .OR. nn_sssr /= 2 )   erp(:,:) = 0._wp
+#endif
       !
    END SUBROUTINE sbc_ssr_init
          

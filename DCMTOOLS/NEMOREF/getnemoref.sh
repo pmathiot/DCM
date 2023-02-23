@@ -31,6 +31,11 @@
 #svn co -r 15299 https://forge.ipsl.jussieu.fr/nemo/svn/NEMO/trunk NEMO4
 ######  4.2.x (gitlab) starts here ###############
 # as of April,7 2022
-commit=26911cc471c9316f7a67495d4fd544dce35b758d
-git clone git@forge.nemo-ocean.eu:nemo/nemo.git NEMO4
-cd NEMO4 ; git checkout $commit
+#commit=26911cc471c9316f7a67495d4fd544dce35b758d
+#git clone git@forge.nemo-ocean.eu:nemo/nemo.git NEMO4
+#cd NEMO4 ; git checkout $commit
+git clone --branch 4.2.0 git@forge.nemo-ocean.eu:nemo/nemo.git NEMO4
+cd NEMO4
+git cherry-pick -m 1 4669aceb   # get sbcrnf bug, issue 33 
+git cherry-pick -m 1 127cef6c   # bug Lupkes sea ice transfert coef, issue 48
+git cherry-pick -m 1 1c00e261   # Minor issue (most important interpolation in dtatsd), issue 36

@@ -28,6 +28,8 @@ mkdir -p  $P_S_DIR/ANNEX
 CN_DIAOBS=${CONFIG_CASE}-DIAOBS     # receive files from diaobs functionality, if used
 CN_DIRRST=$DDIR/${CONFIG_CASE}-RST        # receive restart files
 CN_DIRICB=$DDIR/${CONFIG_CASE}-XIOS       # receive Iceberg Output files
+CN_DIRELM=$DDIR/${CONFIG_CASE}-XIOS       # receive elmer output files
+CN_DIROUT=$DDIR/${CONFIG_CASE}-XIOS
 
 ## -----------------------------------------------------
 echo ''
@@ -86,7 +88,7 @@ echo " [1.2]  set flags according to CPP_keys"
 echo " ======================================"
 echo ''
 # Reminder : NEMO4 CPP keys are :
-key_RK3
+# key_RK3
 # key_agrif
 # key_asminc
 # key_cice
@@ -172,11 +174,36 @@ nit000=`tail -1 $CONFIG_CASE.db | awk '{print $2}' `
 nitend=`tail -1 $CONFIG_CASE.db | awk '{print $3}' `
 
 if [ $no != 1 ] ; then
+    ndastpdeb=`tail -2 $DBFILE | head -1 | awk '{print $4}' `
+else
+    ndastpdeb=$(LookInNamelist nn_date0)
+fi
+echo ""
+echo "           ***  Intial date for this run : $ndastpdeb"
+
+if [ $no != 1 ] ; then
     restart_flag=.TRUE.
+    echo "           ***  run start from a restart file"
 else
     restart_flag=.FALSE.
+    echo "           ***  run start from rest"
 fi
 
+## -------------------------------------
+echo ''
+echo '(2) Set up the namelist for this run from template'
+echo '--------------------------------------------------'
+echo " [2.1]  ocean namelist"
+echo " ====================="
+
+echo ""
+echo "    [2.1.1] update :"
+echo "           <NN_NO>     to ${no}"
+echo "           <CONFCASE>  to ${CONFIG_CASE}"
+echo "           <NIT000>    to ${nit000}"
+echo "           <NITEND>    to ${nitend}"
+echo "           <RESTART>   to .${restart_flag}."
+echo ""
 sed -e "s/<NN_NO>/$no/" \
     -e "s/<CONFCASE>/$CONFIG_CASE/" \
     -e "s/<NIT000>/$nit000/" \
@@ -187,6 +214,29 @@ sed -e "s/<NN_NO>/$no/" \
     -e "s@<CN_DIRICB>@${CN_DIRICB}.$no@"   \
     -e "s@<CN_DIRRST>@${CN_DIRRST}@"   namelist > znamelist1
 \cp znamelist1 namelist
+
+# coupling with Elmer
+ELMERCPL=0
+tmp=$( LookInNamelist ln_isfcpl namelist namisf ) ; tmp=$( normalize $tmp )
+if [ $tmp = T ] ; then ELMERCPL=1 ; fi
+
+if [ $ELMERCPL = 1 ] ; then
+    CN_DOMCFG=${NEMO_DOMAINCFG}_${ndastpdeb}.$((no-1)).nc
+    echo ""
+    echo "    [2.1.2] update <CN_DOMCFG> to ${CN_DOMCFG}"
+    echo ""
+    sed -e "s/<CN_DOMCFG>/${CN_DOMCFG}/" namelist > znamelist1
+    \cp znamelist1 namelist
+
+
+    CN_ICBCLV=${NEMO_ICBCLV}_${ndastpdeb}.$((no-1))
+    echo ""
+    echo "    [2.1.3] update <SN_ICB> to $CN_ICBCLV"
+    echo ""
+    sed -e "s/<SN_ICB>/${CN_ICBCLV}/" namelist > znamelist1
+    \cp znamelist1 namelist
+fi 
+ 
 \cp namelist  namelist_ref
 \cp namelist  namelist_cfg
 
@@ -285,13 +335,6 @@ fi
 rdt=$(LookInNamelist rn_Dt)
 
 ## place holder for time manager (eventually)
-if [ $no != 1 ] ; then
-    ndastpdeb=`tail -2 $CONFIG_CASE.db | head -1 | awk '{print $4}' `
-else
-    ndastpdeb=$(LookInNamelist nn_date0)
-fi
-echo "   ***  Intial date for this run : $ndastpdeb"
-
 year=$(( ndastpdeb / 10000 ))
 mmdd=$(( ndastpdeb - year * 10000 ))
 
@@ -349,6 +392,12 @@ fi
 echo ""
 echo ' [2.5]   Set flags according to namelists'
 echo " ========================================"
+echo ""
+
+# coupling with Elmer
+# flag compute above to manage namelist
+echo "       ***  ELMERCPL = $ELMERCPL"
+echo ""
 
 # Domain cfg file
 DOMAINcfg=0
@@ -683,6 +732,21 @@ eof
 
 
 
+   if [ $ELMERCPL = 1 ] ; then
+      ELMER_CPL_FREQ=${ndays}d
+      echo ""
+      echo "    [2.6.2] update ${ELMER_NEMO_xml}.xml"
+      echo ''
+      echo "            *** replace |RESTART_DIR|    by ${CN_DIRRST}.${no}"
+      echo "            *** replace |ELMER_CPL_FREQ| by $ELMER_CPL_FREQ"
+      echo "            *** replace |NO|             by $no"
+      echo ""
+      sed -e "s/|ELMER_CPL_FREQ|/$ELMER_CPL_FREQ/g" \
+          -e "s@|RESTART_DIR|@${CN_DIRRST}.${no}@" \
+          -e "s/|NO|/${no}/" ${ELMER_NEMO_xml}.xml > ztmp
+      \cp ztmp ${ELMER_NEMO_xml}.xml
+fi 
+ 
 fi
 #--------------------------------------
 echo ""
@@ -692,10 +756,21 @@ echo '---------------------------------------------'
 echo ""
 echo ' [3.1] : configuration files'
 echo ' =========================='
-## DOMAINcfg
-if [ $DOMAINcfg = 1 ] ; then  
-    CN_DOMCFG=$(LookInNamelist cn_domcfg ).nc
-    rapatrie $CN_DOMCFG $P_I_DIR $F_DTA_DIR $CN_DOMCFG ; fi
+echo ""
+## ELMER CPL
+if [ $ELMERCPL = 1 ] ; then
+    if [ $no = 1 ] ; then
+       rapatrie $DOMAINCFG $P_I_DIR $F_DTA_DIR $CN_DOMCFG
+    else
+       rapatrie $CN_DOMCFG ${CN_DIRRST}.$((no-1)) NONE $CN_DOMCFG
+    fi
+else
+    ## DOMAINcfg
+    if [ $DOMAINcfg = 1 ] ; then  
+       CN_DOMCFG=$(LookInNamelist cn_domcfg   namelist).nc
+       rapatrie $CN_DOMCFG $P_I_DIR $F_DTA_DIR $CN_DOMCFG
+    fi
+fi
 
 ## bottom friction file
 if [ $BOOST_DRG_BOT = 1 ] ; then             # enhance bottom friction used
@@ -727,7 +802,15 @@ fi
 
 # iceberg calving
 if [ $ICB = 1 ] ; then
-    getcalving
+   if [ $ELMERCPL = 1 ] ; then
+      if [ $no = 1 ] ; then
+         rapatrie $ICBCLV $P_I_DIR $F_DTA_DIR ${CN_ICBCLV}.nc
+      else
+         rapatrie ${CN_ICBCLV}.nc ${CN_DIRRST}.$((no-1)) NONE ${CN_ICBCLV}.nc
+      fi
+   else
+      getcalving
+   fi
 fi
 
 ## iceshelve fluxes and/or circulation
@@ -1262,26 +1345,76 @@ case $STOP_FLAG in
       # from now, take care of using the correct namelist name in the calls !
 
     date
-    echo ' [5.5] Make restart tar files '
+
+    DEPENDENCYid=""
+    if [ $ELMERCPL = 1 ]; then
+
+        echo ''
+        echo ' [5.5.1] Rebuilt restart files '
+        echo ' ============================='
+ 
+        cd ${CN_DIRRST}.${no} 
+
+        # ocean
+        RSTOCEid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l ${MACHINE} -m -d 1 -x 100 -y 100 -z 1 -t 1 -r 60Gb  restart-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
+        DEPENDENCYid="$RSTOCEid"
+        echo "   *** rebuild ocean restart: jobid $RSTOCEid"
+
+        # ice
+        if [ $ICE = 1 ] ; then
+           RSTICEid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l ${MACHINE} -m -d 1 -x 100 -y 100 -z 1 -t 1 -r 20Gb    restart_ice-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
+           DEPENDENCYid="$DEPENDENCYid:$RSTICEid"
+           echo "   *** rebuild ice restart: jobid $RSTICEid"
+        fi
+
+        # icebergs
+        if [ $ICB = 1 ] ; then
+           RSTICBid=`$NEMOTOOLS_REBUILD_PATH/rebuild_nemo  -l ${MACHINE} -m -i -d 1 -x 100 -y 100 -z 1 -t 1 -r 10Gb restart_icb-${no} $NB_NPROC | tail -1 | cut -d ' ' -f 4`
+           DEPENDENCYid="$DEPENDENCYid:$RSTICBid"
+           echo "   *** rebuild iceberg restart: jobid $RSTICBid"
+        fi
+    fi
+
+    if [ $ELMERCPL = 1 ]; then
+        echo ""
+        echo ' [5.6] submit elmer job'
+        echo ' ========================='
+        echo ""
+        ELMERid=$(submit_elmer ${P_CTL_DIR}/${SUBMIT_ELMER_SCRIPT} elmer.$ext)
+        echo "      jobid : $ELMERid"
+        echo ''
+        DEPENDENCYid="$DEPENDENCYid:$ELMERid"
+    fi
+    date
+
+    echo ''
+    echo ' [5.7] Make restart tar files '
     echo ' ============================='
     # Build a script (to be submitted) for saving the individual ${filext}.$ext 
     # restart files into a set of tar files and expatrie_res them.
     mksavrst  zsrst.$ext.sh   
 
-     # Submit the save-restart script 
-     # When this script is finished ( asynchronously), there is a touch statement on file RST_DONE$mmm.$ext,
-     # that need to be checked before cleaning. 
-    submit ${P_CTL_DIR}/zsrst.$ext.sh
+    # Submit the save-restart script 
+    # When this script is finished ( asynchronously), there is a touch statement on file RST_DONE$mmm.$ext,
+    # that need to be checked before cleaning. 
+    SRSTid=$(submit ${P_CTL_DIR}/zsrst.$ext.sh zsrst.$ext $DEPENDENCYid)
+    echo ""
+    echo "      jobid : $SRSTid"
+    echo ""
+
     cd $TMPDIR   # back in TMPDIR for sure
 
-    date
-    echo ' [5.6] Ready to re-submit the job NOW (to take place in the queue)'
-    echo ' ================================================================='
+    echo ""
+    echo ' [5.6] submit next nemo job'
+    echo ' ============================'
+    echo ""
     TESTSUB=$( wc $CONFIG_CASE.db | awk '{print $1}' )
     if [ $TESTSUB -le  $MAXSUB -o -f  FORCE_RESUB ] ; then
-        submit  ${P_CTL_DIR}/${SUBMIT_SCRIPT} nemo.$((ext+1))
-        cd $TMPDIR
-        cat $TMPDIR/logsubmit
+       NEMOid=$(submit  ${P_CTL_DIR}/${SUBMIT_SCRIPT} nemo.$((no+1)) $DEPENDENCYid)
+       cd $TMPDIR
+       echo ""
+       echo "      jobid : $SRSTid"
+       echo ""
     else
        echo "   --- WARNING: Maximum auto re-submit reached."
     fi ;;
@@ -1408,7 +1541,10 @@ case $STOP_FLAG in
             if [ $MERGE = 0 ] ; then
                 echo "   ***  Recombine for XIOS using rebuild_nemo in a batch"
                 mkbuild_merge zmergxios.$ext.sh  
-                submit ${P_CTL_DIR}/zmergxios.$ext.sh zmergxios.$ext
+                XIOSid=$(submit ${P_CTL_DIR}/zmergxios.$ext.sh zmergxios.$ext)
+                echo ""
+                echo "      jobid : $XIOSid"
+                echo ""
             else  # MERGE on the fly 
                 echo "   ***  Recombine for XIOS using mergefile_mpp4 on the fly"
                 if [ $ENSEMBLE = 1 ] ; then 
@@ -1520,9 +1656,9 @@ eof
         if [ $MERGE_ICB = 0 ] ; then
            echo "   ***  Recombine for ICB in a batch"
            mkbuild_merge_icb zmergicb.$ext.sh
-           submit ${P_CTL_DIR}/zmergicb.$ext.sh
+           submit ${P_CTL_DIR}/zmergicb.$ext.sh zmergicb.$ext
         else
-           cd $DDIR/${CN_DIRICB}.$ext  # go in ICB directory
+           cd ${CN_DIRICB}.$ext  # go in ICB directory
            echo "   ***  Recombine for ICB on the fly"
            process_icb_trj
         fi

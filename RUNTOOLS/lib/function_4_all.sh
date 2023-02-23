@@ -130,6 +130,7 @@ getshlat2d()        {
      filter=''
      tmp=$(LookInNamelist ln_shlat2d namelist namlbc_drk) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then
+       echo 'get shlat2d file ...'
        blk=namlbc_drk ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR
      fi
                     }
@@ -326,7 +327,8 @@ getforcing()        {
         tmp=$(LookInNamelist nn_sstr namelist )       # use SST damping ?
         if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sst " ; fi
         tmp=$(LookInNamelist nn_sssr namelist )       # use SSS damping ?
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sss " ; fi
+        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sss  " ; fi
+        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_empc " ; fi
         blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                           getweight $blk $P_WEI_DIR $F_WEI_DIR
         filter=''
@@ -350,7 +352,7 @@ gettmx()  {
 #  mixing_power_bot mixing_power_pyc mixing_power_cri decay_scale_bot decay_scale_cri
 getzdfiwm() { 
         filter=''
-        blk=namzdf_iwm_drk ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+        blk=namzdf_iwm ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
             }
 # ---
 
@@ -464,6 +466,7 @@ getbdy()  {
 # ---
 # get geothermal heating files
 getgeo()  {
+        echo 'get geothermal heat flux ...'
         filter=''
         blk=nambbc    ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                         getweight $blk $P_WEI_DIR $F_WEI_DIR
@@ -472,6 +475,7 @@ getgeo()  {
 # ---
 # get calving file
 getcalving()  {
+        echo 'get calving files ...'
         SetYears
         filter=''
         nn_test_icebergs=$(LookInNamelist nn_test_icebergs  namelist)
@@ -487,33 +491,31 @@ getcalving()  {
           fi
         fi
           }
+
+# ---
+# get 2d top tidal velocity
+getttv () {
+        filter=''
+	blk=namdrg_top_tipaccs ; getfiles $blk $P_DTA_DIR $F_DTA_DIR
+          }
+
 # ---
 # get isf files
 getisf () {
-       SetYears
        filter=''
        nn_isf=$(LookInNamelist nn_isf  namelist)
-       blk=namsbc_isf
+       blk=namisf
        # need to get files only for nn_isf = 2 3 or 4
        if [ $nn_isf = 2 ] ; then  # 
-         filter='| grep -v sn_fwfisf | grep -v sn_rnfisf' 
+         filter='| grep -v sn_isfcav_fwf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
        if [ $nn_isf = 3 ] ; then  # 
-         filter='| grep -v sn_fwfisf | grep -v sn_Leff_isf ' 
+         filter='| grep -v sn_isfpar_zmax | grep -v sn_isfpar_zmin | grep -v sn_isfpar_fwf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
-         # test if there are additional files to look at
-         filter=''
-         nn_rnfisf_freq=$(LookInNamelist nn_rnfisf_freq  namelist namsbc_isf_drk)
-         if [ $nn_rnfisf_freq ] ; then  # found the namsbc_isf_drk block !
-            blk=namsbc_isf_drk
-            if [ $nn_rnfisf_freq -gt 1 ] ; then
-               getfiles $blk $P_DTA_DIR $F_DTA_DIR
-            fi
-         fi
        fi
        if [ $nn_isf = 4 ] ; then  # 
-         filter='| grep -v sn_rnfisf | grep -v sn_Leff_isf | grep -v sn_depmax_isf | grep -v sn_depmin_isf' 
+         filter='| grep -v sn_isfpar_zmax | grep -v sn_isfpar_zmin | grep -v sn_isfpar_Leff'
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
           }
@@ -998,7 +1000,7 @@ cat << eof >> $1    # Submit script name given as argument
    # $ to be maintained in the final script are replaces by @, then automatic edition
    # replace the @ by $ [ this is necessary because we are at the second level of script
    # creation !
-   cat << eof1 > ztmprst
+   cat << eof1 > ztmp
 #!/bin/bash
    set -x
    . ./includefile.sh
@@ -1013,9 +1015,9 @@ cat << eof >> $1    # Submit script name given as argument
    mmm=\$mmm
    zrstdir=\$zrstdir
    cd $DDIR
-   tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm
+   tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm || exit 42
 eof1
-   cat ztmprst | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
+   cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
 
    mpmd_arg="\$mpmd_arg 1 ./$1\${mmm}.sh"           # prepare the command line for runcode function
@@ -1023,9 +1025,9 @@ eof1
   
   pwd
   if [ ! \$mmm ] ; then
-     ./$1\${mmm}.sh                                 # not an ensemble run : serial process
+     ./$1\${mmm}.sh            || exit 42            # not an ensemble run : serial process
   else
-     runcode_mpmd  \$mpmd_arg                        # launch the scripts in parallele (mpmd mode)
+     runcode_mpmd  \$mpmd_arg  || exit 42            # launch the scripts in parallele (mpmd mode)
   fi
 eof
 
@@ -1066,7 +1068,7 @@ cat << eof >> $1    # Submit script name given as argument
    # $ to be maintained in the final script are replaces by @, then automatic edition
    # replace the @ by $ [ this is necessary because we are at the second level od script
    # creation !
-   cat << eof1 > ztmprst2
+   cat << eof1 > ztmp
 #!/bin/bash
    set -x
    . ./includefile.sh
@@ -1217,7 +1219,7 @@ cat << eof >> $1    # Submit script name given as argument
 
    touch RST_DONE\${mmm}.\$ext
 eof1
-   cat ztmprst2 | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
+   cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
 
    mpmd_arg="\$mpmd_arg 1 ./$1\${mmm}.sh"           # prepare the command line for runcode function
@@ -1405,9 +1407,9 @@ eof
 # Prepare a script for merging files (using mergeproc- off-line).
 # this script is valid for both ensemble and non ensemble run
   mkbuild_merge() {
-  mk_batch_hdr --name ${1%%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
+  mk_batch_hdr --name ${1%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
              --account $ACCOUNT --cluster hpt  --adapp --queue $QUEUE \
-             --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --option '--exclusive' > $1
+             --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --exclusive > $1
        echo "  *** building merging script "
        cat  << eof >> $1
         set -x 
@@ -1446,7 +1448,7 @@ eof
                  g=\${CONFCASE}_\${date}.\${freq}_\${filext}.nc
                  OUTDIR=../\${freq}_OUTPUT
                  mkdir -p \$OUTDIR
-                 cp \$f \$OUTDIR/\$g
+                 cp \$f \$OUTDIR/\$g || exit 42
 
               done
             cd  \$zXIOS
@@ -1454,7 +1456,8 @@ eof
          # end scalar file
          fi
          ln -sf $MERGE_EXEC ./
-             runcode $NB_NPROC_MER ./\$mergeprog -F -c $CN_DOMCFG -r
+         lst0000=\`ls ${CONFIG_CASE}*0000.nc\`
+             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $TMPDIR/$CN_DOMCFG -r || exit 42
 eof
   copy $1 $P_CTL_DIR
             }
@@ -1516,6 +1519,50 @@ mergefiles_ens()  {
          cd $TMPDIR  # for the remnant of the script
               }
 # ---
+
+# Prepare a script for merging icb traj files (using mergeproc- off-line).
+process_icb_trj() {
+     if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
+     echo "rebuild trajectory_icebergs_${no} ..."
+     python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+     if [ $? = 0 ] ; then
+        echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
+     else
+        echo "rebuild trajectory_icebergs_${no} FAILED"
+     fi
+     }
+
+mkbuild_merge_icb() {
+mk_batch_hdr --name ${1%.*} --cores 1 --wallclock $WALL_CLK_MER_ICB \
+             --account $ACCOUNT --queue $QUEUE \
+             --constraint $CONSTRAI_MER_ICB --memory $MEM_MER_ICB > $1
+       echo "  *** building icb script "
+       cat  << eof >> $1
+        set -x 
+        ulimit -s unlimited
+      . ~/.bashrc
+        conda activate nemo
+      . $RUNTOOLS/lib/function_4.sh
+      . $RUNTOOLS/lib/function_4_all.sh
+        DDIR=${DDIR:-$CDIR}
+        zICB=$DDIR/${CN_DIRICB}.$ext
+        cd \$zICB
+
+        if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
+        echo "rebuild trajectory_icebergs_${no} ..."
+        ccc_mprun python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+        if [ $? = 0 ] ; then
+           echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
+           exit 0
+        else
+           echo "rebuild trajectory_icebergs_${no} FAILED"
+           exit 42
+        fi
+eof
+  copy $1 $P_CTL_DIR
+            }
+
+
 # mk_post_process : function that build a script to launch zoomed area post processing in parallel
 mk_post_process()  {
     cat << eof > $1
@@ -1559,16 +1606,16 @@ post_process_one_file()  {
          DDIR=${DDIR:-$CDIR}
          ls -ld WRK.* > /dev/null 2>&1
          if [ $? = 0 ] ; then
-            ztmpof=../WRK.*
+            ztmp=../WRK.*
          else
-            ztmpof=.
+            ztmp=.
          fi
          # mkdir <freq>_OUTPUT directories according to existing files
          for freq in 1ts 1h 3h 1d 3d 5d 1m 1mo ; do
 #            ls *${freq}*_????????-????????.nc  > /dev/null 2>&1 
             ls *${freq}*_*-*.nc  > /dev/null 2>&1 
             if [ $? = 0 ] ; then 
-               mkdir -p ${ztmpof}/${freq}_OUTPUT
+               mkdir -p ${ztmp}/${freq}_OUTPUT
             fi
          done
          # check if zoom coordinates are there in case of zoom
@@ -1648,8 +1695,8 @@ post_process_one_file()  {
          # cd TMPDIR required in the calling program
                          }
 # ---
-# rename_out : rename NEMO output file to <ztmpof>/<freq>_OUTPUT/<CONFIG><zoomid>-<CASE>_<tag>_<type>.nc
-#    ztmpof is either . in case of standard output or the name of a WRK directory (ensemble run)
+# rename_out : rename NEMO output file to <ztmp>/<freq>_OUTPUT/<CONFIG><zoomid>-<CASE>_<tag>_<type>.nc
+#    ztmp is either . in case of standard output or the name of a WRK directory (ensemble run)
 #    it takes the NEMO name as input
 rename_out() {
             nemo_file=$1
@@ -1665,7 +1712,7 @@ rename_out() {
             zdd=${zndastp:6:2} ; zdd=${zdd:=00}
             ztag=y${zyy}m${zmm}d${zdd}.$zfreq
 
-            drak_file=${ztmpof}/${zfreq}_OUTPUT/${CONFIG}${zoomid}-${CASE}${mmm}_${ztag}_$ztype.nc
+            drak_file=${ztmp}/${zfreq}_OUTPUT/${CONFIG}${zoomid}-${CASE}${mmm}_${ztag}_$ztype.nc
             cp $nemo_file $drak_file
 #            mv $nemo_file $drak_file
              }
@@ -1779,6 +1826,7 @@ mk_batch_hdr_core () {
      ("--queue"     ) shift ; queue=$1       ; shift ;;
      ("--adapp"     ) shift ; adapp=1            ;;
      ("--constraint") shift ; constraint=$1  ; shift ;;
+     ("--exclusive" ) shift ; lexclu=1           ;;
      ("--help"      ) shift ;
          echo USAGE : mk_batch_hdr_core  --name name --wallclock wallclock --account account --nodes nodes  ... ;
          echo "       ... " --cores cores --par --seq --adapp --queue qname --option "options line" --constraint=constaint --help ; return ;;
