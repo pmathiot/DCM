@@ -105,8 +105,8 @@ getinitdmp()        {
 # ---
 # Get ice initialisation if required
 geticeini()        {
-    tmp=$(LookInNamelist ln_iceini_file namelist_ice namini ) ; tmp=$(normalize $tmp)
-    if [ $tmp = T ] ; then
+    tmp=$(LookInNamelist nn_iceini_file namelist_ice namini ) ;# tmp=$(normalize $tmp)
+    if [ $tmp > 0 ] ; then
       filter=''
       blk=namini ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR namelist_ice
     fi
