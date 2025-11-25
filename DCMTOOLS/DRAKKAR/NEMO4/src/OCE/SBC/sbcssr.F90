@@ -172,34 +172,30 @@ CONTAINS
                   zsss_m = sss_m * tmask(:,:,1)
                   zsst_m = sst_m * tmask(:,:,1)
                ENDIF
-
+#endif
                DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
+#if defined key_drakkar
                    ! use filters model fields and multiply zerp by erpcoef
                      zerp = zsrp * ( 1. - 2.*rnfmsk(ji,jj) )   &      ! No damping in vicinity of river mouths
                         &        *   coefice(ji,jj)            &      ! Optional control of damping under sea-ice
                         &        * ( zsss_m(ji,jj) - sf_sss(1)%fnow(ji,jj,1) )   &
-                        &        / MAX(  zsss_m(ji,jj), 1.e-20   ) * tmask(ji,jj,1)              &
-                        &        * erpcoef(ji,jj)
+                        &        / MAX(  zsss_m(ji,jj), 1.e-20   )               &
+                        &        * erpcoef(ji,jj) * tmask(ji,jj,1)
                      IF( ln_sssr_bnd )   zerp = SIGN( 1., zerp ) * MIN( zerp_bnd, ABS(zerp) )
                    ! use distance to the coast
                      IF( ln_sssr_msk )   zerp = zerp * distcoast(ji,jj) ! multiply by weigh to fade zerp out near the coast
-                  qns(ji,jj) = qns(ji,jj) - zerp * rcp * sst_m(ji,jj)
-                  erp(ji,jj) = zerp
-                  qrp(ji,jj) = qrp(ji,jj) - zerp * rcp * sst_m(ji,jj)
-               END_2D
 #else
-               DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
-                  zerp = zsrp * ( 1. - 2.*rnfmsk(ji,jj) )   &      ! No damping in vicinity of river mouths
-                     &        *   coefice(ji,jj)            &      ! Optional control of damping under sea-ice
-                     &        * ( sss_m(ji,jj) - sf_sss(1)%fnow(ji,jj,1) )   &
-                     &        / MAX(  sss_m(ji,jj), 1.e-20   ) * tmask(ji,jj,1)
-                  IF( ln_sssr_bnd )   zerp = SIGN( 1.0_wp, zerp ) * MIN( zerp_bnd, ABS(zerp) )
+                     zerp = zsrp * ( 1. - 2.*rnfmsk(ji,jj) )   &      ! No damping in vicinity of river mouths
+                        &        *   coefice(ji,jj)            &      ! Optional control of damping under sea-ice
+                        &        * ( sss_m(ji,jj) - sf_sss(1)%fnow(ji,jj,1) )   &
+                        &        / MAX(  sss_m(ji,jj), 1.e-20   ) * tmask(ji,jj,1)
+                     IF( ln_sssr_bnd )   zerp = SIGN( 1., zerp ) * MIN( zerp_bnd, ABS(zerp) )
+#endif
                   emp(ji,jj) = emp (ji,jj) + zerp
                   qns(ji,jj) = qns(ji,jj) - zerp * rcp * sst_m(ji,jj)
                   erp(ji,jj) = zerp
                   qrp(ji,jj) = qrp(ji,jj) - zerp * rcp * sst_m(ji,jj)
                END_2D
-#endif
 #if defined key_drakkar
             ELSEIF ( nn_sssr == 3) THEN
             CALL fld_read( kt, nn_fsbc, sf_empc )   ! Read SST data and provides it at kt
