@@ -105,11 +105,26 @@ chkfile() { if [ ! -f $1 ] ; then exit 1 ; fi  ; }
 mkordre() { cd $SDIR/${CONFIG}/${CONFIG_CASE}-S/ ; ~/bin/mkordre  ; }
 # ---
 
-# function for submitting jobs; modified for JADE
-submit() {  
-      cd $P_CTL_DIR 
-      ccc_msub $1 > $TMPDIR/logsubmit 
-      cd $TMPDIR  
+function submit_elmer() {
+cd ${P_CTL_DIR}
+ztmp=`/usr/bin/newgrp $GROUPUSR <<EONG
+    ccc_msub -e ${2}.e%j -o ${2}.o%j -r ${2} ${1}
+EONG
+`
+echo $ztmp | awk '{print $4}'
+cd $TMPDIR
+    }
+
+# function for submitting jobs;
+
+submit() { cd ${P_CTL_DIR} 
+           if [ $# = 3 ]; then OPTS=" --dependency=afterok:${3} " ; else OPTS='' ; fi
+           if [ -f ~/.bad_node ] ; then 
+           ccc_msub -e ${2}.e%j -o ${2}.o%j -r ${2} -E "$OPTS" -E "--kill-on-invalid-dep=no" -x $(cat ~/.bad_node) $1 | awk '{print $4}'
+           else
+           ccc_msub -e ${2}.e%j -o ${2}.o%j -r ${2} -E "$OPTS" -E "--kill-on-invalid-dep=no" $1 | awk '{print $4}'
+           fi
+           cd $TMPDIR 
          }
 # ---
 
