@@ -183,7 +183,7 @@ getforcing()        {
          echo  required forcing files :
          echo  =======================
          # check for optional files and set filter
-         filter=''  
+         filter=''
          tmp=$( LookInNamelist ln_taudif );  tmp=$(normalize $tmp )
          if [ $tmp = F ] ; then filter="$filter | grep -v sn_tdif " ; fi
          tmp=$( LookInNamelist ln_clim_forcing );  tmp=$(normalize $tmp )
@@ -294,7 +294,8 @@ getforcing()        {
      else 
        extra=1
      fi 
-     #  iceberg runoff
+
+     #   rnf iceberg file
      tmp=$(LookInNamelist ln_rnf_icb namelist) ; tmp=$(normalize $tmp )
      if [ $tmp = F ] ; then
        filter="$filter | grep -v sn_i_rnf "
@@ -303,12 +304,14 @@ getforcing()        {
      fi
 
      if [ $extra = 1 ] ; then
+       echo "extra rnf files : $filter"
        blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR 
      fi
 
      # Chlorophyl file
      tmp=$(LookInNamelist ln_traqsr namelist) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then   # use light penetration
+         echo 'get Chlorophyl file'
          filter=''
          tmp=$(LookInNamelist ln_qsr_rgb namelist) ; tmp=$(normalize $tmp )   # use RGB parametrization
          if [ $tmp = T ] ; then 
@@ -324,16 +327,30 @@ getforcing()        {
      tmp=$(LookInNamelist ln_ssr namelist) ; tmp=$(normalize $tmp )   # use sea surface restoring
      filter=''
      if [ $tmp = T ] ; then   # use sea surface restoring
+         echo 'get ssr files'
         tmp=$(LookInNamelist nn_sstr namelist )       # use SST damping ?
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sst " ; fi
+        if [ $tmp = 1 ] ; then 
+           filter=''
+           filter="$filter | grep -v sn_sst  "
+           blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+                             getweight $blk $P_WEI_DIR $F_WEI_DIR
+	fi
         tmp=$(LookInNamelist nn_sssr namelist )       # use SSS damping ?
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sss  " ; fi
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_empc " ; fi
-        blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
-                          getweight $blk $P_WEI_DIR $F_WEI_DIR
-        filter=''
+        if [[ $tmp = 2 || $tmp = 1 ]] ; then
+           filter=''
+           filter="$filter | grep -v sn_sss  "
+           blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+                             getweight $blk $P_WEI_DIR $F_WEI_DIR
+	fi
+        if [ $tmp = 3 ] ; then 
+           filter=''
+           filter="$filter | grep -v sn_empc "
+           blk=namsbc_ssr_drk ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+                                 getweight $blk $P_WEI_DIR $F_WEI_DIR
+	fi
         tmp=$(LookInNamelist ln_sssr_msk namelist namsbc_ssr_drk ) ; tmp=$(normalize $tmp )   # use distance to coast file
         if [ $tmp = T ] ; then  
+          filter=''
           blk=namsbc_ssr_drk ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                                 getweight $blk $P_WEI_DIR $F_WEI_DIR
         fi
@@ -491,6 +508,18 @@ getcalving()  {
           fi
         fi
           }
+
+# ---
+# get icb basin file
+geticbbasins()  {
+	echo 'get iceberg basin file ...'
+	filter=''
+        tmp=$(LookInNamelist ln_icb_bas namelist ) ; tmp=$(normalize $tmp )
+        if [ $tmp = T ] ; then
+           cn_icbbasins_file=$(LookInNamelist cn_icbbasins_file namelist )
+           rapatrie $cn_icbbasins_file  $P_DTA_DIR $F_DTA_DIR $cn_icbbasins_file
+        fi
+	  }
 
 # ---
 # get 2d top tidal velocity
@@ -1550,7 +1579,7 @@ mk_batch_hdr --name ${1%.*} --cores 1 --wallclock $WALL_CLK_MER_ICB \
 
         if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
         echo "rebuild trajectory_icebergs_${no} ..."
-        ccc_mprun python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+	ccc_mprun python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $((NB_NPROC-NB_NPROC_IOS)) -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
         if [ $? = 0 ] ; then
            echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
            exit 0
@@ -1881,7 +1910,8 @@ update_db_file()  {
 
      # aammdd is the ndastp of the last day of the run ...
      # where can we get it ???? : in the ocean.output for sure !!
-     aammdd=$( cat $output_ref | grep date | tail -1 | awk '{print $NF}' )
+     #aammdd=$( cat $output_ref | grep date | tail -1 | awk '{print $NF}' )
+     aammdd=$( cat $output_ref | grep -a 'run stop at :' | tail -1 | awk '{print $NF}' )
 
     # Look for line in db file  with only 3 columns, keep this line in last
     last=$( cat $CONFIG_CASE.db | awk ' NF == 3 ' )
@@ -1903,6 +1933,8 @@ update_db_file()  {
 
     dif=$((  $nitend - $nit000  + 1  ))
 
+    nn_leapy=$( LookInNamelist nn_leapy namelist )
+
    # specific case (6month segments)
    if [ $ndays = 185 ] ; then
      dif=$(( 180 * $nstep_per_day ))
@@ -1912,13 +1944,17 @@ update_db_file()  {
 
    # add trick for one year segment and leap year (note that yr 2100 is not a leap year ...)
    if [ $ndays = 365 ] ; then
-      znxty=$(( ${aammdd:0:4} + 1 ))
-      if [ $(( $znxty % 4 )) = 0 ] ; then  # leap year
-        if [ $(( $znxty % 100 )) -eq  0   -a   $(( $znxty % 400 )) -ne  0 ] ; then
-          dif=$(( 365 * $nstep_per_day ))
-        else
-          dif=$(( 366 * $nstep_per_day ))
-        fi
+      if [ $nn_leapy = 0 ]; then
+	 dif=$(( 365 * $nstep_per_day ))
+      else
+         znxty=$(( ${aammdd:0:4} + 1 ))
+         if [ $(( $znxty % 4 )) = 0 ] ; then  # leap year
+           if [ $(( $znxty % 100 )) -eq  0   -a   $(( $znxty % 400 )) -ne  0 ] ; then
+             dif=$(( 365 * $nstep_per_day ))
+           else
+             dif=$(( 366 * $nstep_per_day ))
+           fi
+         fi
       fi
    elif [ $ndays = 366 ] ; then
         dif=$(( 365 * $nstep_per_day ))
@@ -1944,15 +1980,19 @@ update_db_file()  {
         (4|6|9|11 )
           dnew=30 ;;
         (2 )
-          if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
-             if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
-               dnew=28
-             else
-               dnew=29
-             fi
-          else
-             dnew=28
-          fi ;;
+           if [ $nn_leapy = 0 ]; then
+              dnew=28
+	   else
+              if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
+                 if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
+                    dnew=28
+                 else
+                    dnew=29
+                 fi
+              else
+                 dnew=28
+              fi
+           fi ;;
          esac
        fi
        dif=$(( $dnew * $nstep_per_day ))
@@ -1966,15 +2006,19 @@ update_db_file()  {
       case $ndays in
       ( 181 | 182 )  dnew=184 ;;
       ( 184       )  ynew=$(( ybase + 1 ))
-          if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
-             if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
-               dnew=181
-             else
-               dnew=182
-             fi
+	  if [ $nn_leapy = 0 ]; then
+              dnew=181
           else
-             dnew=181
-          fi ;;
+             if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
+                if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
+                   dnew=181
+                else
+                   dnew=182
+                fi
+             else
+                dnew=181
+             fi
+	  fi ;;
       esac
       dif=$(( dnew * $nstep_per_day ))
    fi
