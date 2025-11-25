@@ -97,25 +97,16 @@ getinitdmp()        {
           blk=namtsd_drk ;  getfiles  $blk $P_DTA_DIR $F_DTA_DIR 
                             getweight $blk $P_WEI_DIR $F_WEI_DIR
           # get also resto file ( in case of std NEMO stuff since 3.6 )
-          nn_hdmp=$(LookInNamelist nn_hdmp namelist namtra_dmp_drk) 
-          if [ $nn_hdmp != -2 ] ; then
-             cn_resto=$(LookInNamelist cn_resto namelist namtra_dmp )
-             rapatrie $cn_resto  $P_DTA_DIR $F_DTA_DIR $cn_resto
-          else
-             # look for ln_dmpmask
-             tmp=$(LookInNamelist ln_dmpmask namelist namtra_dmp_drk) ; tmp=$(normalize $tmp )
-             if [ $tmp = T ] ; then
-                blk=namtra_dmp_drk ; getfiles  $blk $P_DTA_DIR $F_DTA_DIR   
-             fi
-          fi
+          cn_resto=$(LookInNamelist cn_resto namelist namtra_dmp )
+          rapatrie $cn_resto  $P_DTA_DIR $F_DTA_DIR $cn_resto
         fi
      fi
                     }
 # ---
 # Get ice initialisation if required
 geticeini()        {
-    tmp=$(LookInNamelist ln_iceini_file namelist_ice namini ) ; tmp=$(normalize $tmp)
-    if [ $tmp = T ] ; then
+    tmp=$(LookInNamelist nn_iceini_file namelist_ice namini ) ;# tmp=$(normalize $tmp)
+    if [ $tmp > 0 ] ; then
       filter=''
       blk=namini ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR namelist_ice
     fi
@@ -139,6 +130,7 @@ getshlat2d()        {
      filter=''
      tmp=$(LookInNamelist ln_shlat2d namelist namlbc_drk) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then
+       echo 'get shlat2d file ...'
        blk=namlbc_drk ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR
      fi
                     }
@@ -150,7 +142,7 @@ SetYears()          {
      # determine the number of years to get according to the lenght of the run
      zn1=$(LookInNamelist nn_it000 namelist )
      zn2=$(LookInNamelist nn_itend namelist )
-     zrdt=$(LookInNamelist rn_rdt  namelist )
+     zrdt=$(LookInNamelist rn_Dt  namelist )
      zstpday=$( echo $zrdt | awk '{print 86400./$1 }' )
      znyear=$( echo $zn1 $zn2 $zstpday | awk '{ print int(( $2 - $1 +1)/$3/365+0.5 )}')
      if [ $znyear = 0 ] ; then znyear=1 ; fi   # force znyear to be at least 1
@@ -191,7 +183,7 @@ getforcing()        {
          echo  required forcing files :
          echo  =======================
          # check for optional files and set filter
-         filter=''  
+         filter=''
          tmp=$( LookInNamelist ln_taudif );  tmp=$(normalize $tmp )
          if [ $tmp = F ] ; then filter="$filter | grep -v sn_tdif " ; fi
          tmp=$( LookInNamelist ln_clim_forcing );  tmp=$(normalize $tmp )
@@ -201,6 +193,14 @@ getforcing()        {
          # check for cloud cover
          tmp=$( LookInNamelist  sn_cc ) 
          if [ $tmp = NOT ] ; then filter="$filter | grep -v sn_cc " ; fi
+         
+         # check for CFB files 
+         tmp=$( LookInNamelist  sn_uoatm )
+         if [ $tmp = NOT ] ; then filter="$filter | grep -v sn_uoatm | grep -v sn_voatm  " ; fi
+
+         # check for CFB files 
+         tmp=$( LookInNamelist  sn_hpgi )
+         if [ $tmp = NOT ] ; then filter="$filter | grep -v sn_hpgi | grep -v sn_hpgj  " ; fi
 
          # check for WDMP forcing
          tmp=$( LookInNamelist ln_wdmp );  tmp=$(normalize $tmp )
@@ -297,7 +297,8 @@ getforcing()        {
      else 
        extra=1
      fi 
-     #  iceberg runoff
+
+     #   rnf iceberg file
      tmp=$(LookInNamelist ln_rnf_icb namelist) ; tmp=$(normalize $tmp )
      if [ $tmp = F ] ; then
        filter="$filter | grep -v sn_i_rnf "
@@ -306,12 +307,14 @@ getforcing()        {
      fi
 
      if [ $extra = 1 ] ; then
+       echo "extra rnf files : $filter"
        blk=namsbc_rnf ;  getfiles $blk $P_DTA_DIR $F_DTA_DIR 
      fi
 
      # Chlorophyl file
      tmp=$(LookInNamelist ln_traqsr namelist) ; tmp=$(normalize $tmp )
      if [ $tmp = T ] ; then   # use light penetration
+         echo 'get Chlorophyl file'
          filter=''
          tmp=$(LookInNamelist ln_qsr_rgb namelist) ; tmp=$(normalize $tmp )   # use RGB parametrization
          if [ $tmp = T ] ; then 
@@ -327,15 +330,30 @@ getforcing()        {
      tmp=$(LookInNamelist ln_ssr namelist) ; tmp=$(normalize $tmp )   # use sea surface restoring
      filter=''
      if [ $tmp = T ] ; then   # use sea surface restoring
+         echo 'get ssr files'
         tmp=$(LookInNamelist nn_sstr namelist )       # use SST damping ?
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sst " ; fi
+        if [ $tmp = 1 ] ; then 
+           filter=''
+           filter="$filter | grep -v sn_sst  "
+           blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+                             getweight $blk $P_WEI_DIR $F_WEI_DIR
+	fi
         tmp=$(LookInNamelist nn_sssr namelist )       # use SSS damping ?
-        if [ $tmp = 0 ] ; then filter="$filter | grep -v sn_sss " ; fi
-        blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
-                          getweight $blk $P_WEI_DIR $F_WEI_DIR
-        filter=''
+        if [[ $tmp = 2 || $tmp = 1 ]] ; then
+           filter=''
+           filter="$filter | grep -v sn_sss  "
+           blk=namsbc_ssr ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+                             getweight $blk $P_WEI_DIR $F_WEI_DIR
+	fi
+        if [ $tmp = 3 ] ; then 
+           filter=''
+           filter="$filter | grep -v sn_empc "
+           blk=namsbc_ssr_drk ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+                                 getweight $blk $P_WEI_DIR $F_WEI_DIR
+	fi
         tmp=$(LookInNamelist ln_sssr_msk namelist namsbc_ssr_drk ) ; tmp=$(normalize $tmp )   # use distance to coast file
         if [ $tmp = T ] ; then  
+          filter=''
           blk=namsbc_ssr_drk ;  getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                                 getweight $blk $P_WEI_DIR $F_WEI_DIR
         fi
@@ -354,7 +372,7 @@ gettmx()  {
 #  mixing_power_bot mixing_power_pyc mixing_power_cri decay_scale_bot decay_scale_cri
 getzdfiwm() { 
         filter=''
-        blk=namzdf_iwm_drk ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
+        blk=namzdf_iwm ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
             }
 # ---
 
@@ -468,6 +486,7 @@ getbdy()  {
 # ---
 # get geothermal heating files
 getgeo()  {
+        echo 'get geothermal heat flux ...'
         filter=''
         blk=nambbc    ; getfiles $blk  $P_DTA_DIR $F_DTA_DIR
                         getweight $blk $P_WEI_DIR $F_WEI_DIR
@@ -476,6 +495,7 @@ getgeo()  {
 # ---
 # get calving file
 getcalving()  {
+        echo 'get calving files ...'
         SetYears
         filter=''
         nn_test_icebergs=$(LookInNamelist nn_test_icebergs  namelist)
@@ -491,33 +511,43 @@ getcalving()  {
           fi
         fi
           }
+
+# ---
+# get icb basin file
+geticbbasins()  {
+	echo 'get iceberg basin file ...'
+	filter=''
+        tmp=$(LookInNamelist ln_icb_bas namelist ) ; tmp=$(normalize $tmp )
+        if [ $tmp = T ] ; then
+           cn_icbbasins_file=$(LookInNamelist cn_icbbasins_file namelist )
+           rapatrie $cn_icbbasins_file  $P_DTA_DIR $F_DTA_DIR $cn_icbbasins_file
+        fi
+	  }
+
+# ---
+# get 2d top tidal velocity
+getttv () {
+        filter=''
+	blk=namdrg_top_tipaccs ; getfiles $blk $P_DTA_DIR $F_DTA_DIR
+          }
+
 # ---
 # get isf files
 getisf () {
-       SetYears
        filter=''
        nn_isf=$(LookInNamelist nn_isf  namelist)
-       blk=namsbc_isf
+       blk=namisf
        # need to get files only for nn_isf = 2 3 or 4
        if [ $nn_isf = 2 ] ; then  # 
-         filter='| grep -v sn_fwfisf | grep -v sn_rnfisf' 
+         filter='| grep -v sn_isfcav_fwf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
        if [ $nn_isf = 3 ] ; then  # 
-         filter='| grep -v sn_fwfisf | grep -v sn_Leff_isf ' 
+         filter='| grep -v sn_isfpar_zmax | grep -v sn_isfpar_zmin | grep -v sn_isfpar_fwf' 
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
-         # test if there are additional files to look at
-         filter=''
-         nn_rnfisf_freq=$(LookInNamelist nn_rnfisf_freq  namelist namsbc_isf_drk)
-         if [ $nn_rnfisf_freq ] ; then  # found the namsbc_isf_drk block !
-            blk=namsbc_isf_drk
-            if [ $nn_rnfisf_freq -gt 1 ] ; then
-               getfiles $blk $P_DTA_DIR $F_DTA_DIR
-            fi
-         fi
        fi
        if [ $nn_isf = 4 ] ; then  # 
-         filter='| grep -v sn_rnfisf | grep -v sn_Leff_isf | grep -v sn_depmax_isf | grep -v sn_depmin_isf' 
+         filter='| grep -v sn_isfpar_zmax | grep -v sn_isfpar_zmin | grep -v sn_isfpar_Leff'
          getfiles $blk $P_DTA_DIR $F_DTA_DIR
        fi
           }
@@ -547,7 +577,7 @@ getobs () {
   root_sla=fdbk_j2_
   slaRefLevel='slaReferenceLevel.nc'
 
-  rdt=$(LookInNamelist rn_rdt)
+  rdt=$(LookInNamelist rn_Dt)
   rdt=$(echo 1 | awk "{ rdt=int($rdt); print rdt}" )
 
   ndays=$( echo 1 | awk "{ a=int( ($nitend - $nit000 +1)*$rdt /86400.) ; print a }" )
@@ -1002,7 +1032,7 @@ cat << eof >> $1    # Submit script name given as argument
    # $ to be maintained in the final script are replaces by @, then automatic edition
    # replace the @ by $ [ this is necessary because we are at the second level of script
    # creation !
-   cat << eof1 > ztmprst
+   cat << eof1 > ztmp
 #!/bin/bash
    set -x
    . ./includefile.sh
@@ -1017,9 +1047,9 @@ cat << eof >> $1    # Submit script name given as argument
    mmm=\$mmm
    zrstdir=\$zrstdir
    cd $DDIR
-   tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm
+   tar cf $F_R_DIR/${CONFIG_CASE}\${mmm}-RST.$ext.tar ${CONFIG_CASE}-RST.$ext/\$mmm || exit 42
 eof1
-   cat ztmprst | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
+   cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
 
    mpmd_arg="\$mpmd_arg 1 ./$1\${mmm}.sh"           # prepare the command line for runcode function
@@ -1027,9 +1057,9 @@ eof1
   
   pwd
   if [ ! \$mmm ] ; then
-     ./$1\${mmm}.sh                                 # not an ensemble run : serial process
+     ./$1\${mmm}.sh            || exit 42            # not an ensemble run : serial process
   else
-     runcode_mpmd  \$mpmd_arg                        # launch the scripts in parallele (mpmd mode)
+     runcode_mpmd  \$mpmd_arg  || exit 42            # launch the scripts in parallele (mpmd mode)
   fi
 eof
 
@@ -1070,7 +1100,7 @@ cat << eof >> $1    # Submit script name given as argument
    # $ to be maintained in the final script are replaces by @, then automatic edition
    # replace the @ by $ [ this is necessary because we are at the second level od script
    # creation !
-   cat << eof1 > ztmprst2
+   cat << eof1 > ztmp
 #!/bin/bash
    set -x
    . ./includefile.sh
@@ -1221,7 +1251,7 @@ cat << eof >> $1    # Submit script name given as argument
 
    touch RST_DONE\${mmm}.\$ext
 eof1
-   cat ztmprst2 | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
+   cat ztmp | sed -e 's/@/\$/g' > ./$1\${mmm}.sh    # change @ into \$ and create script for current member
    chmod 755 ./$1\${mmm}.sh                         # made it executable
 
    mpmd_arg="\$mpmd_arg 1 ./$1\${mmm}.sh"           # prepare the command line for runcode function
@@ -1409,9 +1439,9 @@ eof
 # Prepare a script for merging files (using mergeproc- off-line).
 # this script is valid for both ensemble and non ensemble run
   mkbuild_merge() {
-  mk_batch_hdr --name ${1%%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
+  mk_batch_hdr --name ${1%.*} --cores $NB_NPROC_MER --wallclock $WALL_CLK_MER \
              --account $ACCOUNT --cluster hpt  --adapp --queue $QUEUE \
-             --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --option '--exclusive' > $1
+             --nodes $NB_NNODE_MER --constraint $CONSTRAI_MER --exclusive > $1
        echo "  *** building merging script "
        cat  << eof >> $1
         set -x 
@@ -1450,7 +1480,7 @@ eof
                  g=\${CONFCASE}_\${date}.\${freq}_\${filext}.nc
                  OUTDIR=../\${freq}_OUTPUT
                  mkdir -p \$OUTDIR
-                 cp \$f \$OUTDIR/\$g
+                 cp \$f \$OUTDIR/\$g || exit 42
 
               done
             cd  \$zXIOS
@@ -1458,7 +1488,8 @@ eof
          # end scalar file
          fi
          ln -sf $MERGE_EXEC ./
-             runcode $NB_NPROC_MER ./\$mergeprog -F -c $CN_DOMCFG -r
+         lst0000=\`ls ${CONFIG_CASE}*0000.nc\`
+             runcode $NB_NPROC_MER ./\$mergeprog -f \${lst0000} -c $TMPDIR/$CN_DOMCFG -r || exit 42
 eof
   copy $1 $P_CTL_DIR
             }
@@ -1520,6 +1551,50 @@ mergefiles_ens()  {
          cd $TMPDIR  # for the remnant of the script
               }
 # ---
+
+# Prepare a script for merging icb traj files (using mergeproc- off-line).
+process_icb_trj() {
+     if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
+     echo "rebuild trajectory_icebergs_${no} ..."
+     python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $NB_NPROC -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+     if [ $? = 0 ] ; then
+        echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
+     else
+        echo "rebuild trajectory_icebergs_${no} FAILED"
+     fi
+     }
+
+mkbuild_merge_icb() {
+mk_batch_hdr --name ${1%.*} --cores 1 --wallclock $WALL_CLK_MER_ICB \
+             --account $ACCOUNT --queue $QUEUE \
+             --constraint $CONSTRAI_MER_ICB --memory $MEM_MER_ICB > $1
+       echo "  *** building icb script "
+       cat  << eof >> $1
+        set -x 
+        ulimit -s unlimited
+      . ~/.bashrc
+        conda activate nemo
+      . $RUNTOOLS/lib/function_4.sh
+      . $RUNTOOLS/lib/function_4_all.sh
+        DDIR=${DDIR:-$CDIR}
+        zICB=$DDIR/${CN_DIRICB}.$ext
+        cd \$zICB
+
+        if [ ! -d icb_OUTPUT ]; then mkdir icb_OUTPUT ; fi
+        echo "rebuild trajectory_icebergs_${no} ..."
+	ccc_mprun python $MERGE_ICB_EXEC -t trajectory_icebergs_${no}_ -n $((NB_NPROC-NB_NPROC_IOS)) -o icb_OUTPUT/${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc
+        if [ $? = 0 ] ; then
+           echo "rebuild trajectory_icebergs_${no}_* in ${CONFIG_CASE}_${ndastpdeb}-${ndastpfin}_icbtrj.nc done"
+           exit 0
+        else
+           echo "rebuild trajectory_icebergs_${no} FAILED"
+           exit 42
+        fi
+eof
+  copy $1 $P_CTL_DIR
+            }
+
+
 # mk_post_process : function that build a script to launch zoomed area post processing in parallel
 mk_post_process()  {
     cat << eof > $1
@@ -1563,16 +1638,16 @@ post_process_one_file()  {
          DDIR=${DDIR:-$CDIR}
          ls -ld WRK.* > /dev/null 2>&1
          if [ $? = 0 ] ; then
-            ztmpof=../WRK.*
+            ztmp=../WRK.*
          else
-            ztmpof=.
+            ztmp=.
          fi
          # mkdir <freq>_OUTPUT directories according to existing files
          for freq in 1ts 1h 3h 1d 3d 5d 1m 1mo ; do
 #            ls *${freq}*_????????-????????.nc  > /dev/null 2>&1 
             ls *${freq}*_*-*.nc  > /dev/null 2>&1 
             if [ $? = 0 ] ; then 
-               mkdir -p ${ztmpof}/${freq}_OUTPUT
+               mkdir -p ${ztmp}/${freq}_OUTPUT
             fi
          done
          # check if zoom coordinates are there in case of zoom
@@ -1652,8 +1727,8 @@ post_process_one_file()  {
          # cd TMPDIR required in the calling program
                          }
 # ---
-# rename_out : rename NEMO output file to <ztmpof>/<freq>_OUTPUT/<CONFIG><zoomid>-<CASE>_<tag>_<type>.nc
-#    ztmpof is either . in case of standard output or the name of a WRK directory (ensemble run)
+# rename_out : rename NEMO output file to <ztmp>/<freq>_OUTPUT/<CONFIG><zoomid>-<CASE>_<tag>_<type>.nc
+#    ztmp is either . in case of standard output or the name of a WRK directory (ensemble run)
 #    it takes the NEMO name as input
 rename_out() {
             nemo_file=$1
@@ -1669,7 +1744,7 @@ rename_out() {
             zdd=${zndastp:6:2} ; zdd=${zdd:=00}
             ztag=y${zyy}m${zmm}d${zdd}.$zfreq
 
-            drak_file=${ztmpof}/${zfreq}_OUTPUT/${CONFIG}${zoomid}-${CASE}${mmm}_${ztag}_$ztype.nc
+            drak_file=${ztmp}/${zfreq}_OUTPUT/${CONFIG}${zoomid}-${CASE}${mmm}_${ztag}_$ztype.nc
             cp $nemo_file $drak_file
 #            mv $nemo_file $drak_file
              }
@@ -1783,6 +1858,7 @@ mk_batch_hdr_core () {
      ("--queue"     ) shift ; queue=$1       ; shift ;;
      ("--adapp"     ) shift ; adapp=1            ;;
      ("--constraint") shift ; constraint=$1  ; shift ;;
+     ("--exclusive" ) shift ; lexclu=1           ;;
      ("--help"      ) shift ;
          echo USAGE : mk_batch_hdr_core  --name name --wallclock wallclock --account account --nodes nodes  ... ;
          echo "       ... " --cores cores --par --seq --adapp --queue qname --option "options line" --constraint=constaint --help ; return ;;
@@ -1837,7 +1913,8 @@ update_db_file()  {
 
      # aammdd is the ndastp of the last day of the run ...
      # where can we get it ???? : in the ocean.output for sure !!
-     aammdd=$( cat $output_ref | grep date | tail -1 | awk '{print $NF}' )
+     #aammdd=$( cat $output_ref | grep date | tail -1 | awk '{print $NF}' )
+     aammdd=$( cat $output_ref | grep -a 'run stop at :' | tail -1 | awk '{print $NF}' )
 
     # Look for line in db file  with only 3 columns, keep this line in last
     last=$( cat $CONFIG_CASE.db | awk ' NF == 3 ' )
@@ -1859,6 +1936,8 @@ update_db_file()  {
 
     dif=$((  $nitend - $nit000  + 1  ))
 
+    nn_leapy=$( LookInNamelist nn_leapy namelist )
+
    # specific case (6month segments)
    if [ $ndays = 185 ] ; then
      dif=$(( 180 * $nstep_per_day ))
@@ -1868,13 +1947,17 @@ update_db_file()  {
 
    # add trick for one year segment and leap year (note that yr 2100 is not a leap year ...)
    if [ $ndays = 365 ] ; then
-      znxty=$(( ${aammdd:0:4} + 1 ))
-      if [ $(( $znxty % 4 )) = 0 ] ; then  # leap year
-        if [ $(( $znxty % 100 )) -eq  0   -a   $(( $znxty % 400 )) -ne  0 ] ; then
-          dif=$(( 365 * $nstep_per_day ))
-        else
-          dif=$(( 366 * $nstep_per_day ))
-        fi
+      if [ $nn_leapy = 0 ]; then
+	 dif=$(( 365 * $nstep_per_day ))
+      else
+         znxty=$(( ${aammdd:0:4} + 1 ))
+         if [ $(( $znxty % 4 )) = 0 ] ; then  # leap year
+           if [ $(( $znxty % 100 )) -eq  0   -a   $(( $znxty % 400 )) -ne  0 ] ; then
+             dif=$(( 365 * $nstep_per_day ))
+           else
+             dif=$(( 366 * $nstep_per_day ))
+           fi
+         fi
       fi
    elif [ $ndays = 366 ] ; then
         dif=$(( 365 * $nstep_per_day ))
@@ -1900,15 +1983,19 @@ update_db_file()  {
         (4|6|9|11 )
           dnew=30 ;;
         (2 )
-          if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
-             if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
-               dnew=28
-             else
-               dnew=29
-             fi
-          else
-             dnew=28
-          fi ;;
+           if [ $nn_leapy = 0 ]; then
+              dnew=28
+	   else
+              if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
+                 if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
+                    dnew=28
+                 else
+                    dnew=29
+                 fi
+              else
+                 dnew=28
+              fi
+           fi ;;
          esac
        fi
        dif=$(( $dnew * $nstep_per_day ))
@@ -1922,15 +2009,19 @@ update_db_file()  {
       case $ndays in
       ( 181 | 182 )  dnew=184 ;;
       ( 184       )  ynew=$(( ybase + 1 ))
-          if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
-             if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
-               dnew=181
-             else
-               dnew=182
-             fi
+	  if [ $nn_leapy = 0 ]; then
+              dnew=181
           else
-             dnew=181
-          fi ;;
+             if [ $(( $ynew % 4 )) = 0 ] ; then  # leap year
+                if [ $(( $ynew % 100 )) -eq  0  -a  $(( $ynew % 400 )) -ne  0  ] ; then
+                   dnew=181
+                else
+                   dnew=182
+                fi
+             else
+                dnew=181
+             fi
+	  fi ;;
       esac
       dif=$(( dnew * $nstep_per_day ))
    fi

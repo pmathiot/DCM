@@ -52,7 +52,7 @@ rapatrie() {
 core_rapatrie() {
      echo ${1:-none} | grep -iv none && \
     { if [ -f $4 ] ; then      # file already there
-        echo $4 found
+        echo "$4 found"
       elif [ -f $2/$1 ] ; then #copy from local file system
         cp $2/$1 $4
       else                     # copy from remote file system
@@ -105,11 +105,26 @@ chkfile() { if [ ! -f $1 ] ; then exit 1 ; fi  ; }
 mkordre() { cd $SDIR/${CONFIG}/${CONFIG_CASE}-S/ ; ~/bin/mkordre  ; }
 # ---
 
-# function for submitting jobs; modified for JADE
-submit() {  
-      cd $P_CTL_DIR 
-      ccc_msub $1 > $TMPDIR/logsubmit 
-      cd $TMPDIR  
+function submit_elmer() {
+cd ${P_CTL_DIR}
+ztmp=`/usr/bin/newgrp $GROUPUSR <<EONG
+    ccc_msub -e ${2}.e%j -o ${2}.o%j -r ${2} ${1}
+EONG
+`
+echo $ztmp | awk '{print $4}'
+cd $TMPDIR
+    }
+
+# function for submitting jobs;
+
+submit() { cd ${P_CTL_DIR} 
+           if [ $# = 3 ]; then OPTS=" --dependency=afterok:${3} " ; else OPTS='' ; fi
+           if [ -f ~/.bad_node ] ; then 
+           ccc_msub -e ${2}.e%j -o ${2}.o%j -r ${2} -E "$OPTS" -E "--kill-on-invalid-dep=no" -x $(cat ~/.bad_node) $1 | awk '{print $4}'
+           else
+           ccc_msub -e ${2}.e%j -o ${2}.o%j -r ${2} -E "$OPTS" -E "--kill-on-invalid-dep=no" $1 | awk '{print $4}'
+           fi
+           cd $TMPDIR 
          }
 # ---
 
@@ -129,6 +144,22 @@ runcode_u() {
 #    runcode_mpmd nproc1 prog1 nproc2 prog2  [...] nprocn progn
 #
 #
+
+runcode_mpmd_irene() {
+         zNOCORES=$1
+         zNIOCORES=$3
+         zNCORES=$((zNOCORES+zNIOCORES))
+         rm -f zapp.conf
+         for iter in `seq 1 $((zNCORES/64))`; do 
+            echo "63-1 bash -c \"$2\" "       >> zapp.conf
+            echo "1-1 bash  -c \"$4\" " >> zapp.conf
+         done
+
+         #ccc_mprun -E '-m cyclic' -f zapp.conf
+         ccc_mprun -f zapp.conf
+                  }
+
+
 runcode_mpmd() { 
 #         mpirun -bynode  -np $3 $4 : -np $1 $2
          rm -f ./zapp.conf
@@ -142,7 +173,8 @@ runcode_mpmd() {
               shift 2
            done
          fi
-         ccc_mprun -E '-m cyclic' -f zapp.conf
+         #ccc_mprun -E '-m cyclic' -f zapp.conf
+         ccc_mprun -f zapp.conf
                   }
 
 # ---
@@ -277,14 +309,16 @@ lsrestart() {
 mk_batch_hdr() {
    # initialization of variables on irene
    name=''
-   account=''
-   wallclock=01:00:00
+   account='gen6035'
+   wallclock='01:00:00'
    nodes=1
    cores=1
    jobtype='serial'
    cluster='nhm'
    queue='test'
    option=''
+   lexclu=0
+   memory=2000
    mk_batch_hdr_core $@     # pass all input argument to the core of the function (in function_all)
 
 # on irene wall clock must be passed in seconds ( need to translate argument given as hh:mm:ss )
@@ -296,19 +330,30 @@ cat << eof
 #MSUB -r $name
 #MSUB -n $cores
 eof
-if [ $nodes != 1 ] ; then
 
+if [ $nodes != 1 ] ; then
 cat << eof
 #MSUB -N $nodes
 eof
-
 fi
+
+if [ $lexclu != 0 ] ; then
+cat << eof
+#MSUB -x
+eof
+else
+cat << eof
+#MSUB -M $memory
+eof
+fi
+
 cat << eof
 #MSUB -T $wallclock_second
 #MSUB -q $queue
 #MSUB -o $name.o%I
 #MSUB -e $name.e%I
 #MSUB -A $account
+#MSUB -m store,scratch,work,workflash
 eof
 # add option if any
 if [ $option ] ; then

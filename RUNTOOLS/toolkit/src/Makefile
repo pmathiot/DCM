@@ -1,6 +1,6 @@
 # Makefile for fortran code in RUNTOOLS/toolkit
 
-FC = gfortran
+FC = $(DCM_FC90)
 
 BINDIR = ../../bin
 

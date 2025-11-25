@@ -210,6 +210,7 @@ echo CREATING on $CDIR
 cd $CDIR
 
   chkdir W${CONFIG}-${CASE}
+
 # Create directory on $WORKDIR
 ################################
 
@@ -229,7 +230,6 @@ if [ $DDIR ] ; then
   chkdir $CONFIG/${CONFIG}-${CASE}-R
   chkdir $CONFIG/${CONFIG}-${CASE}-MEAN
 fi
-
 
 # Create directories on $PDIR (production)
 ###############################

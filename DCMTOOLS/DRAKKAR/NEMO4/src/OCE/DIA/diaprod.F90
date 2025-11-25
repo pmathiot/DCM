@@ -2,13 +2,14 @@ MODULE diaprod
 ! Requires key_drakkar
 # if defined key_drakkar
 ! Requires key_iom_put
-# if defined key_iomput
+# if defined key_xios
    !!======================================================================
    !!                     ***  MODULE  diaprod  ***
    !! Ocean diagnostics :  write ocean product diagnostics
    !!=====================================================================
    !! History :  3.4  ! 2012  (D. Storkey)  Original code
    !!            4.0  ! 2019  (D. Storkey)
+   !!            4.2  ! 2022  (J.M. Molines)
    !!----------------------------------------------------------------------
 
    !!----------------------------------------------------------------------
@@ -16,15 +17,8 @@ MODULE diaprod
    !!----------------------------------------------------------------------
    USE oce             ! ocean dynamics and tracers 
    USE dom_oce         ! ocean space and time domain
-   USE domvvl          ! for thickness weighted diagnostics if key_vvl
-   USE eosbn2          ! equation of state  (eos call)
-   USE phycst          ! physical constants
-   USE lbclnk          ! ocean lateral boundary conditions (or mpp link)
-   USE in_out_manager  ! I/O manager
-   USE iom
-   USE ioipsl
-   USE lib_mpp         ! MPP library
-   USE timing          ! preformance summary
+   USE iom             
+   USE timing          ! performance summary
 
    IMPLICIT NONE
    PRIVATE
@@ -32,16 +26,15 @@ MODULE diaprod
    PUBLIC   dia_prod                 ! routines called by step.F90
 
    !! * Substitutions
-#  include "vectopt_loop_substitute.h90"
+#  include "do_loop_substitute.h90"
    !!----------------------------------------------------------------------
-   !! NEMO/OPA 3.4 , NEMO Consortium (2012)
-   !! $Id$
-   !! Software governed by the CeCILL licence
-   !(NEMOGCM/NEMO_CeCILL.txt)
+   !! NEMO/OCE 4.2 , NEMO Consortium (2022)
+   !! $Id: diaprod.F90 
+   !! Software governed by the CeCILL license (see ./LICENSE)
    !!----------------------------------------------------------------------
 CONTAINS
 
-   SUBROUTINE dia_prod( kt )
+   SUBROUTINE dia_prod( kt ,Kmm)
       !!---------------------------------------------------------------------
       !!                  ***  ROUTINE dia_prod  ***
       !!                   
@@ -55,7 +48,9 @@ CONTAINS
       !!----------------------------------------------------------------------
       !!
       INTEGER, INTENT( in ) ::   kt      ! ocean time-step index
+      INTEGER, INTENT( in ) ::   Kmm     ! Ocean time-level index
       !!
+      !!----------------------------------------------------------------------
       INTEGER                      ::   ji, jj, jk              ! dummy loop indices
       REAL(wp)                     ::   zztmp, zztmpx, zztmpy   ! 
       !!
@@ -70,198 +65,138 @@ CONTAINS
       !
 
       IF( iom_use("urhop") .OR. iom_use("vrhop") .OR. iom_use("wrhop") ) THEN 
-         zrhop(:,:,:) = rhop(:,:,:)-1000.e0*tmask(:,:,:)         ! reference potential density to 1000 to avoid precision issues in rhop2 calculation
+         DO_3D(nn_hls, nn_hls, nn_hls, nn_hls,1,jpk)
+           zrhop(ji,jj,jk) = rhop(ji,jj,jk)-1000.e0*tmask(ji,jj,jk)         ! reference potential density to 1000 to avoid precision issues in rhop2 calculation
+         END_3D
       ENDIF
 
       IF( iom_use("ut") ) THEN
          z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = un(ji,jj,jk) * 0.5 * ( tsn(ji,jj,jk,jp_tem) + tsn(ji+1,jj,jk,jp_tem) )
-               END DO
-            END DO
-         END DO
+            DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = uu(ji,jj,jk,Kmm) * 0.5 * ( ts(ji,jj,jk,jp_tem,Kmm) + ts(ji+1,jj,jk,jp_tem,Kmm) )
+            END_3D
          CALL iom_put( "ut", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("vt") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = vn(ji,jj,jk) * 0.5 * ( tsn(ji,jj,jk,jp_tem) + tsn(ji,jj+1,jk,jp_tem) )
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "vt", z3d )                  ! product of temperature and meridional velbocity at V points
+         z3d(:,:,:) = 0.e0
+            DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = vv(ji,jj,jk,Kmm) * 0.5 * ( ts(ji,jj,jk,jp_tem,Kmm) + ts(ji,jj+1,jk,jp_tem,Kmm) )
+            END_3D
+         CALL iom_put( "vt", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("wt") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jj = 2, jpjm1
-            DO ji = fs_2, fs_jpim1   ! vector opt.
-               z3d(ji,jj,1) = wn(ji,jj,1) * tsn(ji,jj,1,jp_tem)
-            END DO
-         END DO
-         DO jk = 2, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = wn(ji,jj,jk) * 0.5 * ( tsn(ji,jj,jk-1,jp_tem) + tsn(ji,jj,jk,jp_tem) )
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "wt", z3d )                  ! product of temperature and vertical velocity at W points
+         z3d(:,:,:) = 0.e0
+         DO_2D(0,0,0,0)
+             z3d(ji,jj,1) = ww(ji,jj,1) * ts(ji,jj,1,jp_tem,Kmm)
+         END_2D
+            DO_3D(0,0,0,0,2,jpkm1)
+                  z3d(ji,jj,jk) = ww(ji,jj,jk) * 0.5 * ( ts(ji,jj,jk-1,jp_tem,Kmm) + ts(ji,jj,jk,jp_tem,Kmm) )
+            END_3D
+         CALL iom_put( "wt", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("us") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = un(ji,jj,jk) * 0.5 * ( tsn(ji,jj,jk,jp_sal) + tsn(ji+1,jj,jk,jp_sal) )
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "us", z3d )                  ! product  salinity and zonal velocity at U points
+         z3d(:,:,:) = 0.e0
+            DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = uu(ji,jj,jk,Kmm) * 0.5 * ( ts(ji,jj,jk,jp_sal,Kmm) + ts(ji+1,jj,jk,jp_sal,Kmm) )
+            END_3D
+         CALL iom_put( "us", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("vs") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = vn(ji,jj,jk) * 0.5 * ( tsn(ji,jj,jk,jp_sal) + tsn(ji,jj+1,jk,jp_sal) )
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "vs", z3d )                  ! product  salinity and meridional velocity at V points
+         z3d(:,:,:) = 0.e0
+            DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = vv(ji,jj,jk,Kmm) * 0.5 * ( ts(ji,jj,jk,jp_sal,Kmm) + ts(ji,jj+1,jk,jp_sal,Kmm) )
+            END_3D
+         CALL iom_put( "vs", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("ws") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jj = 2, jpjm1
-            DO ji = fs_2, fs_jpim1   ! vector opt.
-               z3d(ji,jj,1) = wn(ji,jj,1) * tsn(ji,jj,1,jp_sal)
-            END DO
-         END DO
-         DO jk = 2, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = wn(ji,jj,jk) * 0.5 * ( tsn(ji,jj,jk-1,jp_sal) + tsn(ji,jj,jk,jp_sal) )
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "ws", z3d )                  ! product  salinity and vertical velocity at W points
+         z3d(:,:,:) = 0.e0
+         DO_2D(0,0,0,0)
+             z3d(ji,jj,1) = ww(ji,jj,1) * ts(ji,jj,1,jp_sal,Kmm)
+         END_2D
+            DO_3D(0,0,0,0,2,jpkm1)
+                  z3d(ji,jj,jk) = ww(ji,jj,jk) * 0.5 * ( ts(ji,jj,jk-1,jp_sal,Kmm) + ts(ji,jj,jk,jp_sal,Kmm) )
+            END_3D
+         CALL iom_put( "ws", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("uu") ) THEN
          z3d(:,:,:) = 0.e0
-         DO jk = 1, jpkm1
-            DO jj = 1, jpj
-               DO ji = 1, jpi   ! vector opt.
-                  z3d(ji,jj,jk) =   un(ji,jj,jk) * un(ji,jj,jk) 
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "uu", z3d )                  ! product of velocity and meridional velocity at T points
+            DO_3D(nn_hls,nn_hls,nn_hls,nn_hls,1,jpkm1)
+                  z3d(ji,jj,jk) = uu(ji,jj,jk,Kmm) * uu(ji,jj,jk,Kmm)
+            END_3D
+         CALL iom_put( "uu", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("uv") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = 0.25 * ( un(ji-1,jj,jk) + un(ji,jj,jk) ) * ( vn(ji,jj-1,jk) + vn(ji,jj,jk) ) 
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "uv", z3d )                  ! product of velocity and meridional velocity at T points
+         z3d(:,:,:) = 0.e0
+            DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = 0.25 *( uu(ji-1,jj,jk,Kmm)+ uu(ji,jj,jk,Kmm) ) * ( vv(ji,jj-1,jk,Kmm)+ vv(ji,jj,jk,Kmm) )
+            END_3D
+         CALL iom_put( "uv", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
 
       IF( iom_use("uw") ) THEN
          z3d(:,:,:) = 0.e0 
-         DO jj = 2, jpjm1
-            DO ji = fs_2, fs_jpim1   ! vector opt.
-               z3d(ji,jj,1) = 0.5 * ( wn(ji,jj,1) + wn(ji+1,jj,1) ) * un(ji,jj,1) 
-            END DO
-         END DO
-         DO jk = 2, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = 0.25 * ( wn(ji,jj,jk) + wn(ji+1,jj,jk) ) * ( un(ji,jj,jk-1) + un(ji,jj,jk) ) 
-               END DO
-            END DO
-         END DO
+         DO_2D(0,0,0,0)
+             z3d(ji,jj,1) = 0.5 * ( ww(ji,jj,1) + ww(ji+1,jj,1) ) * uu(ji,jj,1,Kmm)
+         END_2D
+
+         DO_3D(0,0,0,0,2,jpkm1)
+               z3d(ji,jj,jk) = 0.25 * ( ww(ji,jj,jk) + ww(ji+1,jj,jk) ) * ( uu(ji,jj,jk-1,Kmm) + uu(ji,jj,jk,Kmm) )
+         END_3D
          CALL iom_put( "uw", z3d )                  ! product of velocity and vertical velocity at UW points
       ENDIF
 
       IF( iom_use("vv") ) THEN
          z3d(:,:,:) = 0.e0
-         DO jk = 1, jpkm1
-            DO jj = 1, jpj
-               DO ji = 1 , jpi   ! vector opt.
-                  z3d(ji,jj,jk) =   vn(ji,jj,jk) * vn(ji,jj,jk) 
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "vv", z3d )                  ! product of velocity and meridional velocity at T points
+            DO_3D(nn_hls,nn_hls,nn_hls,nn_hls,1,jpkm1)
+                  z3d(ji,jj,jk) = vv(ji,jj,jk,Kmm) * vv(ji,jj,jk,Kmm)
+            END_3D
+         CALL iom_put( "vv", z3d )                  ! product of temperature and zonal velocity at U points
       ENDIF
+
       IF( iom_use("vw") ) THEN
-         z3d(:,:,:) = 0.e0 
-         DO jj = 2, jpjm1
-            DO ji = fs_2, fs_jpim1   ! vector opt.
-               z3d(ji,jj,1) = 0.5 * ( wn(ji,jj,1) + wn(ji,jj+1,1) ) * vn(ji,jj,1) 
-            END DO
-         END DO
-         DO jk = 2, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = 0.25 * ( wn(ji,jj,jk) + wn(ji,jj+1,jk) ) * ( vn(ji,jj,jk-1) + vn(ji,jj,jk) ) 
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "vw", z3d )                  ! product meriodional velocity and vertical velocity at VW points
+         z3d(:,:,:) = 0.e0
+         DO_2D(0,0,0,0)
+             z3d(ji,jj,1) = 0.5 * ( ww(ji,jj,1) + ww(ji,jj+1,1) ) * vv(ji,jj,1,Kmm)
+         END_2D
+
+         DO_3D(0,0,0,0,2,jpkm1)
+               z3d(ji,jj,jk) = 0.25 * ( ww(ji,jj,jk) + ww(ji,jj+1,jk) ) * ( vv(ji,jj,jk-1,Kmm) + vv(ji,jj,jk,Kmm) )
+         END_3D
+         CALL iom_put( "vw", z3d )                  ! product of velocity and vertical velocity at UW points
       ENDIF
 
       IF( iom_use("urhop") ) THEN
          z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = un(ji,jj,jk) * 0.5 * ( zrhop(ji,jj,jk) + zrhop(ji+1,jj,jk) )
-               END DO
-            END DO
-         END DO
+         DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = uu(ji,jj,jk,Kmm) * 0.5 * ( zrhop(ji,jj,jk) + zrhop(ji+1,jj,jk) )
+         END_3D
          CALL iom_put( "urhop", z3d )                  ! product density and zonal velocity at U points
       ENDIF
 
       IF( iom_use("vrhop") ) THEN
          z3d(:,:,:) = 0.e0 
-         DO jk = 1, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = vn(ji,jj,jk) * 0.5 * ( zrhop(ji,jj,jk) + zrhop(ji,jj+1,jk) )
-               END DO
-            END DO
-         END DO
-         CALL iom_put( "vrhop", z3d )                  ! product density and meridional velocity at V points
+         DO_3D(0,0,0,0,1,jpkm1)
+                  z3d(ji,jj,jk) = vv(ji,jj,jk,Kmm) * 0.5 * ( zrhop(ji,jj,jk) + zrhop(ji,jj+1,jk) )
+         END_3D
+         CALL iom_put( "vrhop", z3d )                  ! product density and zonal velocity at U points
       ENDIF
 
       IF( iom_use("wrhop") ) THEN
          z3d(:,:,:) = 0.e0 
-         DO jj = 2, jpjm1
-            DO ji = fs_2, fs_jpim1   ! vector opt.
-               z3d(ji,jj,1) = wn(ji,jj,1) * zrhop(ji,jj,1)
-            END DO
-         END DO
-         DO jk = 2, jpkm1
-            DO jj = 2, jpjm1
-               DO ji = fs_2, fs_jpim1   ! vector opt.
-                  z3d(ji,jj,jk) = wn(ji,jj,jk) * 0.5 * ( zrhop(ji,jj,jk-1) + zrhop(ji,jj,jk) )
-               END DO
-            END DO
-         END DO
+         DO_2D(0,0,0,0)
+             z3d(ji,jj,1) = ww(ji,jj,1) * zrhop(ji,jj,1)
+         END_2D
+        
+         DO_3D(0,0,0,0,2,jpkm1)
+                  z3d(ji,jj,jk) = ww(ji,jj,jk) * 0.5 * ( zrhop(ji,jj,jk-1) + zrhop(ji,jj,jk) )
+         END_3D
          CALL iom_put( "wrhop", z3d )                  ! product density and vertical velocity at W points
       ENDIF
 

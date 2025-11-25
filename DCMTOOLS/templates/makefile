@@ -243,6 +243,7 @@ else
 	@cp -f -R $(CUS)/ext $(COMPIL_DIR)/.
 	@cp -f -R $(CUS)/mk  $(COMPIL_DIR)/.
 	@cp -f -R $(CUS)/arch  $(COMPIL_DIR)/.
+	@cp -f -R $(CUS)/makenemo $(COMPIL_DIR)/
 endif
 	@gmake copyfile
 ifeq ("$(wildcard $(CONFIG)-$(CASE)_cfgs.txt)","")
@@ -313,13 +314,17 @@ else
   endif
 endif
 links:
+	@-ln -sf src/ABL/*.*0 .
+	@-ln -sf src/ICE/*.*0 .
+	@-ln -sf src/NST/*.*0 .
 	@-ln -sf src/OCE/*.*0 .
 	@-ln -sf src/OCE/*/*.*0 .
-	@-ln -sf src/ICE/*.*0 .
+	@-ln -sf src/OFF/*.*0 .
+	@-ln -sf src/SAO/*.*0 .
+	@-ln -sf src/SAS/*.*0 .
+	@-ln -sf src/SWE/*.*0 .
 	@-ln -sf src/TOP/*.*0 .
 	@-ln -sf src/TOP/*/*.*0 .
-	@-ln -sf src/NST/*.*0 .
-	@-ln -sf src/SAS/*.*0 .
 	@-ln -sf ext/src/IOIPSL/*.*0 .
 	@-ln -sf arch/*.fcm .
 ifneq ("$(wildcard src/MY_SRC/*)","")
