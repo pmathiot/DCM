@@ -811,6 +811,7 @@ if [ $ICB = 1 ] ; then
    else
       getcalving
    fi
+   geticbbasins
 fi
 
 ## iceshelve fluxes and/or circulation
