@@ -11,6 +11,7 @@ In July 2018, the anouncement of the major release NEMO_4.0 with deep modificati
 9th, February, 2021 : v4.0.2 tag created, corrsponding to NEMO4 release r4.0.2  
 9th, February, 2021 : HEAD (or master)  is in phase with NEMO4 release r4.0.5
 27th, March, 2021 : HEAD (or master)  is in phase with NEMO4 release r4.0.6
+XXth, XX : HEAD (or master)  is in phase with NEMO4 release r4.2
 
 
 ## License :
